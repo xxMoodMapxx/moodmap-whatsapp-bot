@@ -294,7 +294,7 @@ function analyserHabitudes(fromNumber) {
     };
   }
   
-  let report = '📊 ═══ TES HABITUDES ÉMOTIONNELLES ═══\n\n';
+  let report = '📊 TES HABITUDES ÉMOTIONNELLES\n\n';
   report += `📈 ${cartes.length} analyses dans ton journal\n\n`;
   
   // Répartition par famille météo
@@ -387,13 +387,47 @@ function analyserHabitudes(fromNumber) {
     }
   }
   
-  report += '\n━━━━━━━━━━━━━━━━━━━\n';
-  report += '💡 Ces habitudes révèlent tes patterns émotionnels uniques.';
+  report += '\n💡 Ces habitudes révèlent tes patterns émotionnels uniques.';
   
   return { message: report, patterns: Object.keys(lieux).concat(Object.keys(personnes)) };
 }
 
-// 🌤️ ROUTE PRINCIPALE WEBHOOK
+// 🎨 FONCTION GÉNÉRATION RÉPONSE OPTIMISÉE
+function genererReponseOptimisee(analysis, meteo, incomingMessage, mots, patterns) {
+  let responseMessage = '';
+  
+  // Version courte pour éviter les timeouts
+  const intensiteBar = '●'.repeat(Math.min(analysis.intensite, 5)) + '○'.repeat(5 - Math.min(analysis.intensite, 5));
+  
+  responseMessage += `${meteo.emoji} ${meteo.nom.toUpperCase()}\n`;
+  responseMessage += `${intensiteBar} ${analysis.intensite}/10\n\n`;
+  
+  responseMessage += `💭 "${incomingMessage.substring(0, 80)}${incomingMessage.length > 80 ? '...' : ''}"\n\n`;
+  
+  responseMessage += `✨ ${analysis.message_poetique}\n\n`;
+  
+  if (mots.length > 0) {
+    responseMessage += `🎯 ${mots.slice(0, 3).join(' • ')}\n\n`;
+  }
+  
+  responseMessage += `💝 ${analysis.observation}\n\n`;
+  
+  if (patterns.length > 0) {
+    responseMessage += `🌀 HABITUDE:\n`;
+    responseMessage += `• ${patterns[0]}\n\n`; // Une seule pour éviter la longueur
+  }
+  
+  if (analysis.fallback) {
+    responseMessage += `⚠️ Analyse simplifiée\n\n`;
+  }
+  
+  responseMessage += `📚 ${analysis.fallback ? 'Analysé localement' : 'Analysé par IA'}\n`;
+  responseMessage += `📅 ${new Date().toLocaleDateString('fr-FR')} • ${new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}`;
+  
+  return responseMessage;
+}
+
+// 🌤️ ROUTE PRINCIPALE WEBHOOK AVEC GESTION ERREUR ROBUSTE
 app.post('/webhook', async (req, res) => {
   try {
     const incomingMessage = req.body.Body?.trim() || '';
@@ -402,6 +436,7 @@ app.post('/webhook', async (req, res) => {
     console.log(`📱 Message reçu de ${fromNumber}: "${incomingMessage}"`);
     
     if (!incomingMessage) {
+      console.log('📭 Message vide, ignoring');
       return res.status(200).send('OK');
     }
     
@@ -413,74 +448,108 @@ app.post('/webhook', async (req, res) => {
         incomingMessage.toLowerCase().includes('climato') ||
         incomingMessage.toLowerCase().includes('historique')) {
       
+      console.log('📚 Commande journal détectée');
       const cartes = journal.get(fromNumber) || [];
       
       if (cartes.length === 0) {
-        responseMessage = `📚 ═══ TON JOURNAL MÉTÉO ═══\n\n`;
+        responseMessage = `📚 TON JOURNAL MÉTÉO\n\n`;
         responseMessage += `🌱 Ton journal est encore vide\n\n`;
         responseMessage += `✨ Partage-moi ton état d'esprit\n`;
-        responseMessage += `   pour créer ta première carte météo !\n\n`;
+        responseMessage += `pour créer ta première carte météo !\n\n`;
         responseMessage += `💡 Exemple : "Je me sens bien ce matin"`;
       } else {
-        responseMessage = `📚 ═══ TON JOURNAL MÉTÉO ═══\n\n`;
+        responseMessage = `📚 TON JOURNAL MÉTÉO\n\n`;
         responseMessage += `💎 ${cartes.length} carte${cartes.length > 1 ? 's' : ''} dans ta collection\n\n`;
         
-        // Afficher les 5 dernières cartes
-        const cartesRecentes = cartes.slice(-5).reverse();
+        // Afficher les 3 dernières cartes (réduit pour la longueur)
+        const cartesRecentes = cartes.slice(-3).reverse();
         cartesRecentes.forEach((carte, index) => {
-          const intensiteBar = '●'.repeat(carte.intensite) + '○'.repeat(10 - carte.intensite);
+          const intensiteBar = '●'.repeat(Math.min(carte.intensite, 5)) + '○'.repeat(5 - Math.min(carte.intensite, 5));
           responseMessage += `${carte.meteo_emoji} ${carte.meteo_nom}\n`;
           responseMessage += `${intensiteBar} ${carte.intensite}/10\n`;
           responseMessage += `📅 ${carte.date} • ${carte.heure}\n`;
           if (index < cartesRecentes.length - 1) responseMessage += `\n`;
         });
         
-        if (cartes.length > 5) {
-          responseMessage += `\n━━━━━━━━━━━━━━━━━━━\n`;
-          responseMessage += `📊 ... et ${cartes.length - 5} autres cartes\n`;
+        if (cartes.length > 3) {
+          responseMessage += `\n📊 ... et ${cartes.length - 3} autres cartes\n`;
           responseMessage += `💫 Tape "habitudes" pour voir tes patterns !`;
         }
       }
       
-      twiml.message(responseMessage);
-      return res.type('text/xml').send(twiml.toString());
+      // Envoi sécurisé avec logs
+      try {
+        console.log('📤 Envoi réponse journal...');
+        twiml.message(responseMessage);
+        console.log(`✅ Réponse journal générée (${responseMessage.length} caractères)`);
+        res.type('text/xml').send(twiml.toString());
+        console.log('✅ Réponse journal envoyée avec succès');
+        return;
+      } catch (error) {
+        console.error('❌ Erreur envoi journal:', error);
+        twiml.message('📚 Erreur lors de l\'affichage du journal. Réessaie !');
+        res.type('text/xml').send(twiml.toString());
+        return;
+      }
     }
     
-    // 📊 Commande HABITUDES/PATTERNS (priorité sur message d'accueil)
+    // 📊 Commande HABITUDES/PATTERNS
     if (incomingMessage.toLowerCase().includes('habitudes') || 
         incomingMessage.toLowerCase().includes('pattern') ||
         incomingMessage.toLowerCase().includes('tendance') ||
         incomingMessage.toLowerCase().includes('statistique')) {
       
+      console.log('📊 Commande habitudes détectée');
       const analyse = analyserHabitudes(fromNumber);
-      twiml.message(analyse.message);
-      return res.type('text/xml').send(twiml.toString());
+      
+      try {
+        console.log('📤 Envoi réponse habitudes...');
+        twiml.message(analyse.message);
+        console.log(`✅ Réponse habitudes générée (${analyse.message.length} caractères)`);
+        res.type('text/xml').send(twiml.toString());
+        console.log('✅ Réponse habitudes envoyée avec succès');
+        return;
+      } catch (error) {
+        console.error('❌ Erreur envoi habitudes:', error);
+        twiml.message('📊 Erreur lors de l\'analyse des habitudes. Réessaie !');
+        res.type('text/xml').send(twiml.toString());
+        return;
+      }
     }
     
-    // 🆘 COMMANDES SPÉCIALES - Message d'accueil pour messages courts
+    // 🆘 COMMANDES SPÉCIALES - Message d'accueil
     if (incomingMessage.length <= 8 || 
         ['help', 'aide', 'menu', '?', 'salut', 'hello', 'hi', 'bonjour', 'bonsoir', 'test'].includes(incomingMessage.toLowerCase())) {
       
-      responseMessage = `🌤️ ═══ BIENVENUE SUR MOODMAP ═══\n\n`;
+      console.log('🆘 Message d\'accueil détecté');
+      responseMessage = `🌤️ BIENVENUE SUR MOODMAP\n\n`;
       responseMessage += `👋 Salut ! Je suis ton assistant d'intelligence émotionnelle.\n\n`;
       responseMessage += `💬 COMMENT ÇA MARCHE :\n`;
-      responseMessage += `Décris-moi ton état d'esprit en une phrase :\n`;
+      responseMessage += `Décris-moi ton état d'esprit :\n`;
       responseMessage += `• "Je me sens stressé au travail"\n`;
-      responseMessage += `• "Super heureuse avec mes amis"\n`;
-      responseMessage += `• "Un peu confus aujourd'hui"\n\n`;
+      responseMessage += `• "Super heureuse avec mes amis"\n\n`;
       responseMessage += `🎯 JE VAIS :\n`;
-      responseMessage += `• Analyser ton émotion avec l'IA Mistral\n`;
-      responseMessage += `• Te donner ta "météo émotionnelle" 🌦️\n`;
-      responseMessage += `• Détecter tes habitudes personnelles\n`;
-      responseMessage += `• Générer des observations empathiques\n\n`;
-      responseMessage += `📚 COMMANDES UTILES :\n`;
-      responseMessage += `• "journal" → Ton historique complet\n`;
-      responseMessage += `• "habitudes" → Tes corrélations intelligentes\n\n`;
-      responseMessage += `━━━━━━━━━━━━━━━━━━━\n`;
-      responseMessage += `✨ Essaie maintenant avec ton humeur du moment !`;
+      responseMessage += `• Analyser ton émotion avec l'IA\n`;
+      responseMessage += `• Te donner ta "météo émotionnelle"\n`;
+      responseMessage += `• Détecter tes patterns personnels\n\n`;
+      responseMessage += `📚 COMMANDES :\n`;
+      responseMessage += `• "journal" → Ton historique\n`;
+      responseMessage += `• "habitudes" → Tes patterns\n\n`;
+      responseMessage += `✨ Essaie maintenant avec ton humeur !`;
       
-      twiml.message(responseMessage);
-      return res.type('text/xml').send(twiml.toString());
+      try {
+        console.log('📤 Envoi message d\'accueil...');
+        twiml.message(responseMessage);
+        console.log(`✅ Message d'accueil généré (${responseMessage.length} caractères)`);
+        res.type('text/xml').send(twiml.toString());
+        console.log('✅ Message d\'accueil envoyé avec succès');
+        return;
+      } catch (error) {
+        console.error('❌ Erreur envoi accueil:', error);
+        twiml.message('🌤️ Bienvenue ! Décris-moi ton humeur pour commencer !');
+        res.type('text/xml').send(twiml.toString());
+        return;
+      }
     }
     
     // 🧠 ANALYSE ÉMOTIONNELLE PRINCIPALE
@@ -500,91 +569,40 @@ app.post('/webhook', async (req, res) => {
     const meteo = mapperEmotionVersMeteo(analysis.emotion, analysis.intensite);
     console.log('🌦️ Météo sélectionnée:', meteo);
     
-    // Générer la réponse avec le nouveau format
-    const intensiteBar = '●'.repeat(analysis.intensite) + '○'.repeat(10 - analysis.intensite);
-    
-    responseMessage = `${meteo.emoji} ═══ ${meteo.nom.toUpperCase()} ═══\n`;
-    responseMessage += `${intensiteBar} Intensité ${analysis.intensite}/10\n\n`;
-    
-    responseMessage += `💭 "${incomingMessage}"\n`;
-    if (analysis.contexte && Object.values(analysis.contexte).some(v => v && v.length > 0)) {
-      let contexteStr = '';
-      if (analysis.contexte.lieu) contexteStr += `📍${analysis.contexte.lieu} `;
-      if (analysis.contexte.activite) contexteStr += `⚡${analysis.contexte.activite} `;
-      if (analysis.contexte.personnes && analysis.contexte.personnes.length > 0) {
-        contexteStr += `👥${analysis.contexte.personnes.join(', ')} `;
-      }
-      if (contexteStr.trim()) {
-        responseMessage += `   └ ${contexteStr.trim()}\n`;
-      }
+    if (!meteo) {
+      console.error('❌ Erreur: météo undefined');
+      twiml.message('🌫️ Problème technique lors de l\'analyse. Réessaie !');
+      res.type('text/xml').send(twiml.toString());
+      return;
     }
-    responseMessage += `\n`;
     
-    responseMessage += `✨ ${analysis.message_poetique}\n\n`;
-    
-    // Extraire et afficher les mots-clés principaux du message
+    // Extraire les mots-clés
     const mots = incomingMessage.toLowerCase()
       .replace(/[^\w\sàâäéèêëïîôöùûüÿç]/g, ' ')
       .split(/\s+/)
-      .filter(mot => mot.length > 3 && !['dans', 'avec', 'pour', 'sans', 'être', 'avoir', 'faire', 'dire', 'aller', 'voir', 'savoir', 'pouvoir', 'falloir', 'vouloir', 'venir', 'prendre', 'donner', 'partir', 'parler', 'demander', 'tenir', 'sembler', 'laisser', 'rester', 'devenir', 'revenir', 'sortir', 'passer', 'porter', 'mettre', 'croire', 'rendre', 'cette', 'cette', 'tous', 'tout', 'mais', 'plus', 'très', 'bien', 'alors', 'après', 'avant', 'comme', 'encore', 'jamais', 'toujours', 'aussi', 'même'].includes(mot))
-      .slice(0, 4);
+      .filter(mot => mot.length > 3 && !['dans', 'avec', 'pour', 'sans', 'être', 'avoir', 'faire', 'dire', 'aller', 'voir', 'savoir', 'pouvoir', 'falloir', 'vouloir', 'venir', 'prendre', 'donner', 'partir', 'parler', 'demander', 'tenir', 'sembler', 'laisser', 'rester', 'devenir', 'revenir', 'sortir', 'passer', 'porter', 'mettre', 'croire', 'rendre', 'cette', 'tous', 'tout', 'mais', 'plus', 'très', 'bien', 'alors', 'après', 'avant', 'comme', 'encore', 'jamais', 'toujours', 'aussi', 'même'].includes(mot))
+      .slice(0, 3);
     
-    if (mots.length > 0) {
-      responseMessage += `🎯 ${mots.join(' • ')}\n\n`;
-    }
-    
-    responseMessage += `💝 ${analysis.observation}\n\n`;
-    
-    // Analyser les patterns avec cette nouvelle carte
+    // Analyser les patterns
     const cartesExistantes = journal.get(fromNumber) || [];
+    const patterns = [];
     
-    // Détecter des patterns simples
-    if (cartesExistantes.length >= 2) {
-      const patterns = [];
-      
-      // Pattern lieu + émotion
-      if (analysis.contexte?.lieu) {
-        const cartesLieu = cartesExistantes.filter(c => c.contexte?.lieu === analysis.contexte.lieu);
-        if (cartesLieu.length >= 2) {
-          const memeMeteo = cartesLieu.filter(c => c.meteo_famille === meteo.famille).length;
-          const pourcentage = Math.round((memeMeteo / cartesLieu.length) * 100);
-          if (pourcentage >= 60) {
-            patterns.push(`📍 ${analysis.contexte.lieu}: ${meteo.emoji} dans ${pourcentage}% des cas (${memeMeteo}/${cartesLieu.length})`);
-          }
+    // Pattern simplifié pour éviter la longueur
+    if (cartesExistantes.length >= 2 && analysis.contexte?.lieu) {
+      const cartesLieu = cartesExistantes.filter(c => c.contexte?.lieu === analysis.contexte.lieu);
+      if (cartesLieu.length >= 2) {
+        const memeMeteo = cartesLieu.filter(c => c.meteo_famille === meteo.famille).length;
+        const pourcentage = Math.round((memeMeteo / cartesLieu.length) * 100);
+        if (pourcentage >= 60) {
+          patterns.push(`📍 ${analysis.contexte.lieu}: ${meteo.emoji} ${pourcentage}% (${memeMeteo}/${cartesLieu.length})`);
         }
       }
-      
-      // Pattern personne + émotion
-      if (analysis.contexte?.personnes && analysis.contexte.personnes.length > 0) {
-        analysis.contexte.personnes.forEach(personne => {
-          const cartesPersonne = cartesExistantes.filter(c => c.contexte?.personnes?.includes(personne));
-          if (cartesPersonne.length >= 2) {
-            const memeMeteo = cartesPersonne.filter(c => c.meteo_famille === meteo.famille).length;
-            const pourcentage = Math.round((memeMeteo / cartesPersonne.length) * 100);
-            if (pourcentage >= 60) {
-              patterns.push(`👤 Avec ${personne}: ${meteo.emoji} dans ${pourcentage}% des cas (${memeMeteo}/${cartesPersonne.length})`);
-            }
-          }
-        });
-      }
-      
-      if (patterns.length > 0) {
-        responseMessage += `🌀 HABITUDES DÉTECTÉES:\n`;
-        patterns.forEach(pattern => {
-          responseMessage += `• ${pattern}\n`;
-        });
-        responseMessage += `\n`;
-      }
     }
     
-    // Fallback warning si applicable
-    if (analysis.fallback) {
-      responseMessage += `⚠️ Analyse simplifiée (IA temporairement indisponible)\n\n`;
-    }
-    
-    responseMessage += `━━━━━━━━━━━━━━━━━━━\n`;
-    responseMessage += `📚 ${analysis.fallback ? 'Analysé en mode local' : 'Analysé par IA Mistral'} • Ajouté à ton journal\n`;
-    responseMessage += `   └ ${new Date().toLocaleDateString('fr-FR')} • ${new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}`;
+    // Générer la réponse optimisée
+    console.log('📝 Génération réponse optimisée...');
+    responseMessage = genererReponseOptimisee(analysis, meteo, incomingMessage, mots, patterns);
+    console.log(`📏 Longueur message: ${responseMessage.length} caractères`);
     
     // Stocker dans le journal
     const carte = {
@@ -608,21 +626,55 @@ app.post('/webhook', async (req, res) => {
     }
     journal.get(fromNumber).push(carte);
     
-    // Limiter à 50 cartes par utilisateur (pour éviter la saturation mémoire)
+    // Limiter à 50 cartes par utilisateur
     if (journal.get(fromNumber).length > 50) {
       journal.get(fromNumber).shift();
     }
     
     console.log(`✅ Carte météo créée et stockée pour ${fromNumber}`);
     
-    twiml.message(responseMessage);
-    res.type('text/xml').send(twiml.toString());
+    // ENVOI SÉCURISÉ AVEC LOGS DÉTAILLÉS
+    try {
+      console.log('📤 Envoi réponse analyse émotionnelle...');
+      console.log(`📋 Aperçu message: "${responseMessage.substring(0, 100)}..."`);
+      
+      twiml.message(responseMessage);
+      
+      console.log('📨 Message ajouté au TwiML');
+      console.log('📡 Envoi vers WhatsApp via Twilio...');
+      
+      res.type('text/xml').send(twiml.toString());
+      
+      console.log('✅ Réponse analyse émotionnelle envoyée avec succès !');
+      
+    } catch (error) {
+      console.error('❌ ERREUR CRITIQUE lors de l\'envoi:', error);
+      console.error('❌ Type erreur:', error.constructor.name);
+      console.error('❌ Message erreur:', error.message);
+      console.error('❌ Stack:', error.stack);
+      
+      // Fallback ultra-simple
+      const twimlFallback = new twilio.twiml.MessagingResponse();
+      twimlFallback.message(`${meteo.emoji} ${meteo.nom} - Intensité ${analysis.intensite}/10\n\n✨ ${analysis.message_poetique}\n\n📚 Analysé et stocké !`);
+      res.type('text/xml').send(twimlFallback.toString());
+      console.log('✅ Message fallback envoyé');
+    }
     
   } catch (error) {
-    console.error('❌ Erreur webhook:', error);
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message('🌫️ Une petite turbulence technique... Réessaie dans un moment ! ✨');
-    res.type('text/xml').send(twiml.toString());
+    console.error('❌ ERREUR GLOBALE webhook:', error);
+    console.error('❌ Type erreur:', error.constructor.name);
+    console.error('❌ Message erreur:', error.message);
+    console.error('❌ Stack:', error.stack);
+    
+    try {
+      const twiml = new twilio.twiml.MessagingResponse();
+      twiml.message('🌫️ Turbulence technique ! Réessaie dans un moment ! ✨');
+      res.type('text/xml').send(twiml.toString());
+      console.log('✅ Message d\'erreur envoyé');
+    } catch (finalError) {
+      console.error('❌ ERREUR FINALE:', finalError);
+      res.status(500).send('Internal Server Error');
+    }
   }
 });
 
@@ -638,7 +690,7 @@ app.get('/', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>MoodMap Bot V4.1 Revolution</title>
+        <title>MoodMap Bot V4.1.3 HOTFIX Revolution</title>
         <meta charset="UTF-8">
         <style>
             body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; text-align: center; }
@@ -653,8 +705,8 @@ app.get('/', (req, res) => {
     </head>
     <body>
         <div class="container">
-            <h1>🌤️ MoodMap Bot V4.1</h1>
-            <p class="subtitle">Assistant d'Intelligence Émotionnelle Révolutionnaire</p>
+            <h1>🌤️ MoodMap Bot V4.1.3</h1>
+            <p class="subtitle">Assistant d'Intelligence Émotionnelle HOTFIX</p>
             
             <div class="stats">
                 <div class="stat">
@@ -672,14 +724,15 @@ app.get('/', (req, res) => {
             </div>
             
             <div class="features">
-                <h3>🚀 Fonctionnalités V4.1 :</h3>
+                <h3>🚀 HOTFIX V4.1.3 - Messages sécurisés :</h3>
                 <div class="feature">🌈 60 météos émotionnelles ultra-précises</div>
                 <div class="feature">🧠 IA Mistral pour analyse contextuelle</div>
                 <div class="feature">📊 Détection d'habitudes avancées</div>
                 <div class="feature">🛡️ Système fallback enrichi (50+ mots-clés)</div>
                 <div class="feature">📚 Journal personnel intelligent</div>
                 <div class="feature">💝 Observations empathiques personnalisées</div>
-                <div class="feature">🎯 Interface utilisateur intuitive</div>
+                <div class="feature">🔧 Messages optimisés + logs détaillés</div>
+                <div class="feature">🚨 Gestion d'erreur robuste</div>
             </div>
             
             <p style="margin-top: 2rem; opacity: 0.7;">
@@ -694,12 +747,14 @@ app.get('/', (req, res) => {
 
 // 🚀 DÉMARRAGE SERVEUR
 app.listen(port, () => {
-  console.log(`🚀 MoodMap WhatsApp Bot V4.1 REVOLUTION démarré sur port ${port}`);
+  console.log(`🚀 MoodMap WhatsApp Bot V4.1.3 HOTFIX démarré sur port ${port}`);
   console.log(`🌈 60 météos émotionnelles: ACTIVÉES ✅`);
   console.log(`🧠 Mistral AI: ${process.env.MISTRAL_API_KEY ? 'ACTIVÉ ✅' : 'NON CONFIGURÉ ❌'}`);
   console.log(`🛡️ Fallback enrichi: ACTIVÉ ✅`);
   console.log(`📊 Habitudes avancées: ACTIVÉES ✅`);
-  console.log(`💬 Vocabulaire user-friendly: ACTIVÉ ✅`);
+  console.log(`💬 Messages optimisés: ACTIVÉS ✅`);
+  console.log(`🔧 Logs détaillés: ACTIVÉS ✅`);
+  console.log(`🚨 Gestion erreur robuste: ACTIVÉE ✅`);
   console.log(`📚 Journal intelligent: ACTIVÉ ✅`);
 });
 
