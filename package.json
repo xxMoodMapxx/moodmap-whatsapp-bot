@@ -1,7 +1,7 @@
 {
   "name": "moodmap-whatsapp-bot",
-  "version": "1.0.0",
-  "description": "MoodMap WhatsApp Bot - Intelligence émotionnelle via IA",
+  "version": "4.0.0",
+  "description": "MoodMap WhatsApp Bot V4.0 - IA + Visual Cards + Advanced Patterns",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,12 +12,13 @@
     "twilio": "^4.19.0",
     "axios": "^1.6.0",
     "body-parser": "^1.20.2",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "canvas": "^2.11.2"
   },
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["whatsapp", "bot", "mood", "ai", "twilio"],
+  "keywords": ["whatsapp", "bot", "mood", "ai", "visual", "patterns"],
   "author": "xxMoodMapxx",
   "license": "MIT"
 }
