@@ -10,8 +10,8 @@ const port = process.env.PORT || 3000;
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-const AccountSid = process.env.TWILIO_ACCOUNT_SID;
-const AuthToken = process.env.TWILIO_AUTH_TOKEN;
+const AccountSid = process.env.TWILIO_ACCOUNT_SID || 'AC17fe25637040eec0bf4cf9639a167104';
+const AuthToken = process.env.TWILIO_AUTH_TOKEN || '095485d0bd7272ce88b38d49e002858e';
 const client = twilio(AccountSid, AuthToken);
 
 // 🌈 SYSTÈME 60 MÉTÉOS ÉMOTIONNELLES V4.1
