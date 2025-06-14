@@ -118,7 +118,7 @@ FORMAT JSON OBLIGATOIRE - RETOURNE UNIQUEMENT LE JSON PUR, PAS DE MARKDOWN:
   "observation": "Insight psychologique bienveillant français"
 }
 
-CRITIQUE: N'encadre PAS le JSON avec ```json ou ``` - retourne DIRECTEMENT le JSON !
+CRITIQUE: N'encadre PAS le JSON avec des balises markdown - retourne DIRECTEMENT le JSON !
 IMPORTANT: Si analyse impossible, retourne emotion "confusion" et intensité 5.`;
 
 // 💾 STOCKAGE EN MÉMOIRE (Journal personnel)
@@ -160,6 +160,8 @@ const FALLBACK_SYSTEM = {
 
 // 🎯 FONCTION MAPPING ÉMOTION → MÉTÉO
 function mapperEmotionVersMeteo(emotion, intensite) {
+  console.log(`🎯 Mapping: ${emotion} (intensité ${intensite})`);
+  
   // Mapping correct émotions → familles météo
   const familleMapping = {
     'joie': 'soleil',
@@ -171,18 +173,31 @@ function mapperEmotionVersMeteo(emotion, intensite) {
   };
   
   const famille = familleMapping[emotion.toLowerCase()] || 'brouillard';
+  console.log(`🎯 Famille sélectionnée: ${famille}`);
   
   // Sélectionner les météos de la famille correspondante
   const meteorites = Object.values(METEO_SYSTEM).filter(meteo => meteo.famille === famille);
+  console.log(`🎯 Météos disponibles (${famille}):`, meteorites.length);
   
-  if (meteorites.length === 0) return Object.values(METEO_SYSTEM)[50]; // Fallback brume
+  if (meteorites.length === 0) {
+    console.log('⚠️ Aucune météo trouvée, fallback vers Brume');
+    return METEO_SYSTEM[51]; // Brume (ID 51)
+  }
   
   // Trouver la météo qui correspond le mieux à l'intensité
   const meteoAdaptee = meteorites.find(meteo => 
     intensite >= meteo.intensite_min && intensite <= meteo.intensite_max
-  ) || meteorites[Math.floor(meteorites.length / 2)]; // Fallback milieu de gamme
+  );
   
-  return meteoAdaptee;
+  if (meteoAdaptee) {
+    console.log(`✅ Météo trouvée: ${meteoAdaptee.emoji} ${meteoAdaptee.nom}`);
+    return meteoAdaptee;
+  } else {
+    // Fallback vers milieu de gamme de la famille
+    const meteoFallback = meteorites[Math.floor(meteorites.length / 2)];
+    console.log(`⚠️ Pas de météo exacte, fallback famille: ${meteoFallback.emoji} ${meteoFallback.nom}`);
+    return meteoFallback;
+  }
 }
 
 // 🤖 FONCTION ANALYSE MISTRAL AI
