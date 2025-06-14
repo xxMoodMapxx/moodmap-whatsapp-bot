@@ -18,7 +18,9 @@ const METEO_SYSTEM = {
     emoji: '☀️',
     message: 'Cette lumière dorée vient de toi',
     couleur: '#FFD700',
-    mots_cles: ['heureux', 'joie', 'content', 'bien', 'épanoui', 'rayonne', 'sourire', 'bonheur', 'excellent', 'formidable', 'super', 'génial'],
+    mots_positifs: ['heureux', 'joie', 'content', 'bien', 'épanoui', 'rayonne', 'sourire', 'bonheur', 'excellent', 'formidable', 'super', 'génial', 'merveilleuse', 'réussi', 'réussir', 'parfait', 'fantastique', 'merveilleux'],
+    expressions_positives: ['sans doute', 'j\'ai réussi', 'ça marche', 'c\'est bon', 'top niveau'],
+    poids: 3,
     description: 'Joie, bonheur, sérénité, euphorie'
   },
   '☁️': {
@@ -26,7 +28,9 @@ const METEO_SYSTEM = {
     emoji: '☁️',
     message: 'Les nuages passent, tu demeures',
     couleur: '#B0C4DE',
-    mots_cles: ['ennui', 'morne', 'gris', 'bof', 'moyen', 'ordinaire', 'banal', 'fade', 'monotone'],
+    mots_positifs: ['ennui', 'morne', 'gris', 'bof', 'moyen', 'ordinaire', 'banal', 'fade', 'monotone', 'routine'],
+    expressions_positives: ['ça va', 'c\'est ok', 'comme d\'habitude'],
+    poids: 1,
     description: 'Ennui, monotonie, grisaille émotionnelle'
   },
   '🌫️': {
@@ -34,7 +38,9 @@ const METEO_SYSTEM = {
     emoji: '🌫️',
     message: 'Ce brouillard peut aussi être une pause',
     couleur: '#D3D3D3',
-    mots_cles: ['confus', 'perdu', 'flou', 'incertain', 'perplexe', 'hésitant', 'doute', 'incompréhension', 'brumeux'],
+    mots_positifs: ['confus', 'perdu', 'flou', 'incertain', 'perplexe', 'hésitant', 'incompréhension', 'brumeux', 'je sais pas', 'compliqué'],
+    expressions_positives: ['je comprends pas', 'c\'est flou', 'pas clair'],
+    poids: 1,
     description: 'Confusion, incertitude, perplexité'
   },
   '🌧️': {
@@ -42,7 +48,9 @@ const METEO_SYSTEM = {
     emoji: '🌧️',
     message: 'Chaque goutte nourrit quelque chose en toi',
     couleur: '#4682B4',
-    mots_cles: ['triste', 'déprimé', 'mal', 'mélancolie', 'cafard', 'pleure', 'chagrin', 'peine', 'nostalgie', 'larmes'],
+    mots_positifs: ['triste', 'déprimé', 'mal', 'mélancolie', 'cafard', 'pleure', 'chagrin', 'peine', 'nostalgie', 'larmes', 'malheureux', 'découragement'],
+    expressions_positives: ['j\'ai le blues', 'ça va pas', 'c\'est dur'],
+    poids: 2,
     description: 'Tristesse, mélancolie, cafard, déprime'
   },
   '⛈️': {
@@ -50,7 +58,9 @@ const METEO_SYSTEM = {
     emoji: '⛈️',
     message: 'Les tempêtes intérieures préparent souvent un ciel neuf',
     couleur: '#8B0000',
-    mots_cles: ['énervé', 'colère', 'rage', 'furieux', 'irrité', 'agacé', 'frustré', 'bouillir', 'exploser'],
+    mots_positifs: ['énervé', 'colère', 'rage', 'furieux', 'irrité', 'agacé', 'frustré', 'bouillir', 'exploser', 'en colère', 'ras le bol'],
+    expressions_positives: ['j\'en ai marre', 'ça m\'énerve', 'je pète un câble'],
+    poids: 2,
     description: 'Colère, frustration, énervement, rage'
   },
   '❄️': {
@@ -58,25 +68,43 @@ const METEO_SYSTEM = {
     emoji: '❄️',
     message: 'Sous la neige, tout se tait… parfois c\'est nécessaire',
     couleur: '#E6E6FA',
-    mots_cles: ['vide', 'engourdi', 'détaché', 'absent', 'indifférent', 'anesthésié', 'déconnecté', 'gelé', 'silence'],
+    mots_positifs: ['vide', 'engourdi', 'détaché', 'absent', 'indifférent', 'anesthésié', 'déconnecté', 'gelé', 'silence', 'nowhere'],
+    expressions_positives: ['j\'ai plus envie', 'je sens rien', 'complètement vide'],
+    poids: 2,
     description: 'Dissociation douce, anesthésie émotionnelle, besoin de silence'
   }
 };
 
-// Fonction de détection météorologique sophistiquée
+// Fonction de détection météorologique sophistiquée avec scoring pondéré
 function detecterMeteo(message) {
   const texte = message.toLowerCase();
   const scores = {};
   
-  // Calculer le score pour chaque météo
-  for (const [emoji, meteo] of Object.entries(METEO_SYSTEM)) {
+  // Initialiser les scores
+  for (const emoji of Object.keys(METEO_SYSTEM)) {
     scores[emoji] = 0;
-    
-    for (const mot of meteo.mots_cles) {
+  }
+  
+  // Analyser chaque météo
+  for (const [emoji, meteo] of Object.entries(METEO_SYSTEM)) {
+    // Scorer les mots individuels
+    for (const mot of meteo.mots_positifs) {
       if (texte.includes(mot)) {
-        scores[emoji] += 1;
+        scores[emoji] += meteo.poids;
       }
     }
+    
+    // Scorer les expressions complètes (plus de poids)
+    for (const expression of meteo.expressions_positives) {
+      if (texte.includes(expression)) {
+        scores[emoji] += meteo.poids * 2; // Double poids pour les expressions
+      }
+    }
+  }
+  
+  // Gestion spéciale d'expressions idiomatiques positives
+  if (texte.includes('sans doute') && (texte.includes('réussi') || texte.includes('marche') || texte.includes('bien'))) {
+    scores['☀️'] += 4; // Boost soleil pour "sans doute réussi"
   }
   
   // Trouver la météo avec le score le plus élevé
@@ -84,24 +112,37 @@ function detecterMeteo(message) {
     scores[a] > scores[b] ? a : b
   );
   
-  // Si aucun mot-clé détecté, retourner brouillard par défaut
+  // Si aucun score positif, retourner brouillard par défaut
   return scores[meteoDetectee] > 0 ? meteoDetectee : '🌫️';
 }
 
-// Fonction d'extraction des bulles émotionnelles
+// Fonction d'extraction des bulles émotionnelles améliorée
 function extraireBulles(message) {
-  const motsvides = ['je', 'tu', 'il', 'elle', 'nous', 'vous', 'ils', 'elles', 'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'avec', 'dans', 'sur', 'pour', 'par', 'sans', 'sous', 'vers', 'chez', 'et', 'ou', 'mais', 'donc', 'car', 'que', 'qui', 'quoi', 'où', 'quand', 'comment', 'pourquoi'];
+  const motsvides = [
+    'je', 'tu', 'il', 'elle', 'nous', 'vous', 'ils', 'elles', 
+    'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'des',
+    'avec', 'dans', 'sur', 'pour', 'par', 'sans', 'sous', 'vers', 'chez',
+    'et', 'ou', 'mais', 'donc', 'car', 'que', 'qui', 'quoi', 'où', 'quand', 'comment', 'pourquoi',
+    'ce', 'cette', 'ces', 'mon', 'ma', 'mes', 'ton', 'ta', 'tes', 'son', 'sa', 'ses',
+    'avoir', 'être', 'fait', 'faire', 'dit', 'dire', 'voir', 'aller', 'venir',
+    'très', 'plus', 'moins', 'aussi', 'encore', 'déjà', 'toujours', 'jamais',
+    'aujourd', 'hier', 'demain', 'maintenant', 'alors', 'après', 'avant'
+  ];
   
   const mots = message.toLowerCase()
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
-    .filter(mot => mot.length > 3 && !motsvides.includes(mot));
+    .filter(mot => 
+      mot.length > 4 && 
+      !motsvides.includes(mot) && 
+      !mot.match(/^\d+$/) // Exclure les nombres
+    )
+    .slice(0, 4); // Limiter à 4 mots-clés max
   
-  // Retourner les mots significatifs comme bulles
-  return mots.slice(0, 5); // Limiter à 5 bulles max
+  return mots;
 }
 
-// Fonction de génération de carte météo
+// Fonction de génération de carte météo avec design amélioré
 function genererCarte(message, phoneNumber) {
   const meteo = detecterMeteo(message);
   const meteoInfo = METEO_SYSTEM[meteo];
@@ -136,33 +177,39 @@ function genererInsight(meteo, bulles) {
   const insights = {
     '☀️': [
       'Cette lumière intérieure mérite d\'être célébrée.',
-      'Ton rayonnement aujourd\'hui est une gift pour le monde.',
-      'Cette joie que tu ressens, elle t\'appartient pleinement.'
+      'Ton rayonnement aujourd\'hui est un cadeau pour le monde.',
+      'Cette joie que tu ressens, elle t\'appartient pleinement.',
+      'Ce succès que tu vis, il reflète ta persévérance.'
     ],
     '☁️': [
       'Ce gris peut aussi être une pause bienvenue.',
       'Parfois, les nuages nous offrent une douceur particulière.',
-      'Cette neutralité que tu ressens a sa propre sagesse.'
+      'Cette neutralité que tu ressens a sa propre sagesse.',
+      'Dans cette monotonie, quelque chose se repose.'
     ],
     '🌫️': [
       'Ce brouillard a peut-être quelque chose à dire.',
       'Dans cette confusion, une clarté nouvelle se prépare.',
-      'Parfois, ne pas voir loin permet de mieux voir près.'
+      'Parfois, ne pas voir loin permet de mieux voir près.',
+      'Cette incertitude porte peut-être une vérité cachée.'
     ],
     '🌧️': [
       'Ces gouttes nourrissent quelque chose de profond en toi.',
       'Cette tristesse que tu ressens, elle a sa propre vérité.',
-      'Chaque larme porte une part de guérison.'
+      'Chaque larme porte une part de guérison.',
+      'Cette mélancolie dit quelque chose d\'important sur ton cœur.'
     ],
     '⛈️': [
       'Cette tempête intérieure prépare peut-être un renouveau.',
       'Ta colère dit quelque chose d\'important sur tes besoins.',
-      'L\'orage passe, et souvent il nettoie l\'atmosphère.'
+      'L\'orage passe, et souvent il nettoie l\'atmosphère.',
+      'Cette frustration porte une énergie de changement.'
     ],
     '❄️': [
       'Ce silence intérieur est peut-être nécessaire maintenant.',
       'Sous cette neige émotionnelle, quelque chose se repose.',
-      'Parfois, se retirer du monde est un acte de sagesse.'
+      'Parfois, se retirer du monde est un acte de sagesse.',
+      'Cette distance que tu ressens protège peut-être quelque chose de précieux.'
     ]
   };
   
@@ -184,7 +231,7 @@ function detecterPatterns(phoneNumber) {
     if (cartePassee.meteo === carteActuelle.meteo) {
       const joursEcoules = Math.floor((carteActuelle.timestamp - cartePassee.timestamp) / (1000 * 60 * 60 * 24));
       if (joursEcoules > 0 && joursEcoules < 30) {
-        return `Tu évoques un climat ${carteActuelle.nom_meteo.toLowerCase()} aujourd'hui, comme il y a ${joursEcoules} jour${joursEcoules > 1 ? 's' : ''}.`;
+        return `${carteActuelle.meteo} Pattern détecté: même climat qu'il y a ${joursEcoules} jour${joursEcoules > 1 ? 's' : ''}.`;
       }
     }
   }
@@ -192,22 +239,67 @@ function detecterPatterns(phoneNumber) {
   return null;
 }
 
+// Fonction de formatage du message avec design élégant
+function formaterReponse(carte, pattern = null) {
+  let response = '';
+  
+  // Header avec design élégant
+  response += `${carte.meteo} ═══ ${carte.nom_meteo} ═══\n\n`;
+  
+  // Citation du message original
+  response += `💭 "${carte.message_original}"\n\n`;
+  
+  // Message poétique avec séparateur
+  response += `✨ ${carte.message_poetique}\n\n`;
+  
+  // Mots-clés extraits (seulement s'il y en a)
+  if (carte.bulles.length > 0) {
+    response += `🎯 ${carte.bulles.join(' • ')}\n\n`;
+  }
+  
+  // Insight empathique
+  response += `💝 ${carte.insight_empathique}\n\n`;
+  
+  // Pattern détecté (si applicable)
+  if (pattern) {
+    response += `🌀 ${pattern}\n\n`;
+  }
+  
+  // Footer avec climatothèque
+  response += `━━━━━━━━━━━━━━━━━━━\n`;
+  response += `📚 Ajouté à ta climatothèque\n`;
+  response += `   └ ${carte.date} • ${carte.heure}`;
+  
+  return response;
+}
+
 // Routes
 app.get('/', (req, res) => {
-  res.send('🌤️ MoodMap WhatsApp Bot is ALIVE! Ready to track your emotional weather!');
+  res.send(`
+    <h1>🌤️ MoodMap WhatsApp Bot V2.0</h1>
+    <p><strong>Status:</strong> 🟢 LIVE & READY!</p>
+    <p><strong>Features:</strong> Intelligent emotion detection + Beautiful design</p>
+    <p><strong>Webhook:</strong> <code>/webhook</code></p>
+    <p><strong>Health:</strong> <a href="/health">/health</a></p>
+  `);
 });
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    message: 'MoodMap Bot is running!',
-    timestamp: new Date().toISOString()
-  });
+  const stats = {
+    status: 'OK',
+    version: '2.0',
+    message: 'MoodMap Bot V2.0 - Intelligent & Beautiful!',
+    timestamp: new Date().toISOString(),
+    features: ['Smart emotion detection', 'Elegant message design', 'Pattern recognition', 'Climatothèque storage'],
+    total_users: climatheque.size,
+    total_cards: Array.from(climatheque.values()).reduce((sum, cards) => sum + cards.length, 0)
+  };
+  res.status(200).json(stats);
 });
 
 // Route principale WhatsApp
 app.post('/webhook', (req, res) => {
-  console.log('📱 Message reçu:', req.body);
+  console.log('📱 Message reçu V2.0:', req.body);
   
   const incomingMessage = req.body.Body || '';
   const fromNumber = req.body.From || '';
@@ -221,48 +313,41 @@ app.post('/webhook', (req, res) => {
   if (incomingMessage.toLowerCase().includes('climatothèque')) {
     const cartes = climatheque.get(fromNumber) || [];
     if (cartes.length === 0) {
-      responseMessage = '📚 Ta climatothèque est encore vide.\n\nPartage-moi ton état d\'esprit pour créer ta première carte météo !';
+      responseMessage = `📚 ═══ CLIMATOTHÈQUE ═══\n\n`;
+      responseMessage += `🌱 Ta collection est encore vide\n\n`;
+      responseMessage += `✨ Partage-moi ton état d'esprit\n`;
+      responseMessage += `   pour créer ta première carte météo !`;
     } else {
-      responseMessage = `📚 Ta climatothèque contient ${cartes.length} carte${cartes.length > 1 ? 's' : ''} météo :\n\n`;
-      cartes.slice(-3).forEach(carte => {
-        responseMessage += `${carte.meteo} ${carte.date} - ${carte.nom_meteo}\n`;
+      responseMessage = `📚 ═══ CLIMATOTHÈQUE ═══\n\n`;
+      responseMessage += `💎 ${cartes.length} carte${cartes.length > 1 ? 's' : ''} météo dans ta collection\n\n`;
+      
+      cartes.slice(-3).forEach((carte, index) => {
+        responseMessage += `${carte.meteo} ${carte.date} • ${carte.nom_meteo}\n`;
       });
-      responseMessage += '\n💫 Chaque carte raconte un moment de ton voyage émotionnel.';
+      
+      responseMessage += `\n━━━━━━━━━━━━━━━━━━━\n`;
+      responseMessage += `💫 Chaque carte raconte un moment\n`;
+      responseMessage += `   de ton voyage émotionnel`;
     }
   } 
   // Détection et génération de carte météo
-  else if (incomingMessage.length > 10) {
+  else if (incomingMessage.length > 8) {
     const carte = genererCarte(incomingMessage, fromNumber);
-    
-    // Message principal de réponse
-    responseMessage = `${carte.meteo} ${carte.nom_meteo.toUpperCase()} détecté\n\n`;
-    responseMessage += `💭 "${carte.message_original}"\n\n`;
-    responseMessage += `🎨 ${carte.message_poetique}\n\n`;
-    
-    if (carte.bulles.length > 0) {
-      responseMessage += `🔮 Mots-clés extraits: ${carte.bulles.join(', ')}\n\n`;
-    }
-    
-    responseMessage += `💜 ${carte.insight_empathique}\n\n`;
-    responseMessage += `📅 Carte ajoutée à ta climatothèque (${carte.date} à ${carte.heure})`;
-    
-    // Détecter des patterns temporels
     const pattern = detecterPatterns(fromNumber);
-    if (pattern) {
-      responseMessage += `\n\n🌀 Pattern détecté: ${pattern}`;
-    }
+    responseMessage = formaterReponse(carte, pattern);
   } 
   // Message d'accueil
   else {
-    responseMessage = `🌤️ MoodMap Bot - Intelligence Émotionnelle\n\n`;
-    responseMessage += `Je transforme tes états d'esprit en cartes météo poétiques.\n\n`;
-    responseMessage += `💫 Décris-moi ton humeur du moment:\n`;
-    responseMessage += `"Je me sens fatigué au travail"\n`;
-    responseMessage += `"Je suis heureuse avec mes amis"\n\n`;
-    responseMessage += `🎨 6 météos disponibles:\n`;
-    responseMessage += `☀️ Soleil • ☁️ Nuages • 🌫️ Brouillard\n`;
-    responseMessage += `🌧️ Pluie • ⛈️ Orage • ❄️ Neige\n\n`;
-    responseMessage += `📚 Écris "climatothèque" pour voir ton historique`;
+    responseMessage = `🌤️ ═══ MOODMAP BOT ═══\n\n`;
+    responseMessage += `✨ Intelligence Émotionnelle Poétique\n\n`;
+    responseMessage += `💬 Décris-moi ton humeur:\n`;
+    responseMessage += `   "Je me sens fatigué au travail"\n`;
+    responseMessage += `   "Journée géniale avec mes amis"\n\n`;
+    responseMessage += `🎨 Six météos disponibles:\n`;
+    responseMessage += `   ☀️ Soleil • ☁️ Nuages • 🌫️ Brouillard\n`;
+    responseMessage += `   🌧️ Pluie • ⛈️ Orage • ❄️ Neige\n\n`;
+    responseMessage += `━━━━━━━━━━━━━━━━━━━\n`;
+    responseMessage += `📚 Tape "climatothèque" pour ton historique`;
   }
   
   twiml.message(responseMessage);
@@ -271,7 +356,9 @@ app.post('/webhook', (req, res) => {
 
 // Démarrer le serveur
 app.listen(PORT, () => {
-  console.log(`🚀 MoodMap WhatsApp Bot démarré sur le port ${PORT}`);
+  console.log(`🚀 MoodMap WhatsApp Bot V2.0 démarré sur le port ${PORT}`);
+  console.log(`🧠 Algorithme intelligent: Scoring pondéré + expressions idiomatiques`);
+  console.log(`🎨 Design élégant: Mise en page structurée + séparateurs`);
   console.log(`🌐 URL: ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}`);
   console.log(`📱 Webhook: ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/webhook`);
 });
