@@ -104,7 +104,7 @@ ANALYSE ÉMOTIONNELLE:
 - Intensité 1-10 selon le ressenti global
 - Contexte: lieu, activité, moment SEULEMENT si explicites
 
-FORMAT JSON OBLIGATOIRE:
+FORMAT JSON OBLIGATOIRE - RETOURNE UNIQUEMENT LE JSON PUR, PAS DE MARKDOWN:
 {
   "emotion": "joie|tristesse|colere|ennui|detachement|confusion",
   "intensite": [1-10],
@@ -118,6 +118,7 @@ FORMAT JSON OBLIGATOIRE:
   "observation": "Insight psychologique bienveillant français"
 }
 
+CRITIQUE: N'encadre PAS le JSON avec ```json ou ``` - retourne DIRECTEMENT le JSON !
 IMPORTANT: Si analyse impossible, retourne emotion "confusion" et intensité 5.`;
 
 // 💾 STOCKAGE EN MÉMOIRE (Journal personnel)
@@ -159,14 +160,20 @@ const FALLBACK_SYSTEM = {
 
 // 🎯 FONCTION MAPPING ÉMOTION → MÉTÉO
 function mapperEmotionVersMeteo(emotion, intensite) {
+  // Mapping correct émotions → familles météo
+  const familleMapping = {
+    'joie': 'soleil',
+    'tristesse': 'pluie', 
+    'colere': 'orage',
+    'ennui': 'nuages',
+    'detachement': 'neige',
+    'confusion': 'brouillard'
+  };
+  
+  const famille = familleMapping[emotion.toLowerCase()] || 'brouillard';
+  
   // Sélectionner les météos de la famille correspondante
-  const meteorites = Object.values(METEO_SYSTEM).filter(meteo => 
-    meteo.famille === emotion.toLowerCase() || 
-    (emotion === 'colere' && meteo.famille === 'orage') ||
-    (emotion === 'ennui' && meteo.famille === 'nuages') ||
-    (emotion === 'detachement' && meteo.famille === 'neige') ||
-    (emotion === 'confusion' && meteo.famille === 'brouillard')
-  );
+  const meteorites = Object.values(METEO_SYSTEM).filter(meteo => meteo.famille === famille);
   
   if (meteorites.length === 0) return Object.values(METEO_SYSTEM)[50]; // Fallback brume
   
@@ -200,8 +207,16 @@ async function analyserAvecMistralAI(message) {
     const aiResponse = response.data.choices[0].message.content;
     console.log('🧠 Réponse IA Mistral:', aiResponse);
     
+    // Nettoyer la réponse si elle contient des balises markdown
+    let cleanResponse = aiResponse.trim();
+    if (cleanResponse.startsWith('```json')) {
+      cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanResponse.startsWith('```')) {
+      cleanResponse = cleanResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    
     // Parser le JSON retourné par Mistral
-    const analysis = JSON.parse(aiResponse);
+    const analysis = JSON.parse(cleanResponse);
     
     // Validation et nettoyage
     const emotions_valides = ['joie', 'tristesse', 'colere', 'ennui', 'detachement', 'confusion'];
