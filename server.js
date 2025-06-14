@@ -1,9 +1,6 @@
 const express = require('express');
 const { MessagingResponse } = require('twilio').twiml;
 const axios = require('axios');
-const { createCanvas, loadImage, registerFont } = require('canvas');
-const fs = require('fs');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -11,7 +8,6 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.urlencoded({ extended: false }));
-app.use('/cartes', express.static('cartes')); // Servir les images générées
 
 // Base de données temporaire (en mémoire pour POC)
 let climatheque = new Map(); // Structure: phoneNumber -> [cartes météo]
@@ -26,7 +22,6 @@ const METEO_SYSTEM = {
     nom: 'SOLEIL',
     emoji: '☀️',
     couleur: '#FFD700',
-    gradient: ['#FFD700', '#FFA500'],
     valeur_numerique: 5,
     description: 'Joie, bonheur, sérénité, euphorie, réussite',
     // Messages backup (fallback seulement)
@@ -47,7 +42,6 @@ const METEO_SYSTEM = {
     nom: 'NUAGES',
     emoji: '☁️',
     couleur: '#B0C4DE',
-    gradient: ['#B0C4DE', '#778899'],
     valeur_numerique: 3,
     description: 'Ennui, monotonie, neutralité, routine',
     messages_backup: [
@@ -67,7 +61,6 @@ const METEO_SYSTEM = {
     nom: 'BROUILLARD',
     emoji: '🌫️',
     couleur: '#D3D3D3',
-    gradient: ['#D3D3D3', '#A9A9A9'],
     valeur_numerique: 2,
     description: 'Confusion, incertitude, perplexité, questionnement',
     messages_backup: [
@@ -87,7 +80,6 @@ const METEO_SYSTEM = {
     nom: 'PLUIE',
     emoji: '🌧️',
     couleur: '#4682B4',
-    gradient: ['#4682B4', '#2F4F4F'],
     valeur_numerique: 2,
     description: 'Tristesse, mélancolie, nostalgie, chagrin',
     messages_backup: [
@@ -107,7 +99,6 @@ const METEO_SYSTEM = {
     nom: 'ORAGE',
     emoji: '⛈️',
     couleur: '#8B0000',
-    gradient: ['#8B0000', '#DC143C'],
     valeur_numerique: 1,
     description: 'Colère, frustration, irritation, révolte',
     messages_backup: [
@@ -127,7 +118,6 @@ const METEO_SYSTEM = {
     nom: 'NEIGE',
     emoji: '❄️',
     couleur: '#E6E6FA',
-    gradient: ['#E6E6FA', '#D8BFD8'],
     valeur_numerique: 1,
     description: 'Détachement, vide, anesthésie émotionnelle, retrait',
     messages_backup: [
@@ -210,12 +200,6 @@ const FALLBACK_DETECTION = {
     ]
   }
 };
-
-// Dossier pour stocker les cartes générées
-const CARTES_DIR = path.join(__dirname, 'cartes');
-if (!fs.existsSync(CARTES_DIR)) {
-  fs.mkdirSync(CARTES_DIR, { recursive: true });
-}
 
 // Fonction d'analyse émotionnelle avec Mistral AI (PRINCIPALE)
 async function analyserAvecMistralAI(message) {
@@ -346,145 +330,6 @@ function extraireMots(message) {
     .split(/\s+/)
     .filter(mot => mot.length > 3 && !motsvides.includes(mot))
     .slice(0, 4);
-}
-
-// Fonction de génération de carte visuelle
-async function genererCarteVisuelle(carte) {
-  try {
-    const width = 400;
-    const height = 600;
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    
-    const meteoInfo = METEO_SYSTEM[carte.meteo];
-    
-    // Background avec gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, meteoInfo.gradient[0]);
-    gradient.addColorStop(1, meteoInfo.gradient[1]);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-    
-    // Border arrondi
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(10, 10, width-20, height-20, 20);
-    ctx.stroke();
-    
-    // Header météo
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 32px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${carte.meteo} ${carte.nom_meteo}`, width/2, 70);
-    
-    // Intensité
-    ctx.font = '18px Arial';
-    const intensiteText = '●'.repeat(carte.intensite) + '○'.repeat(5 - carte.intensite);
-    ctx.fillText(`${intensiteText} ${carte.intensite}/5`, width/2, 110);
-    
-    // Citation (tronquée si trop longue)
-    ctx.font = '16px Arial';
-    ctx.fillStyle = '#f0f0f0';
-    const citation = carte.message_original.length > 60 ? 
-      carte.message_original.substring(0, 57) + '...' : 
-      carte.message_original;
-    
-    // Wrapper texte citation
-    const words = citation.split(' ');
-    let line = '';
-    let y = 170;
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > width - 60 && n > 0) {
-        ctx.fillText(`"${line.trim()}"`, width/2, y);
-        line = words[n] + ' ';
-        y += 25;
-      } else {
-        line = testLine;
-      }
-    }
-    ctx.fillText(`"${line.trim()}"`, width/2, y);
-    
-    // Message poétique
-    ctx.font = 'italic 18px Arial';
-    ctx.fillStyle = '#ffffff';
-    y += 60;
-    const poetique = carte.message_poetique;
-    
-    // Wrapper message poétique
-    const poetWords = poetique.split(' ');
-    line = '';
-    for (let n = 0; n < poetWords.length; n++) {
-      const testLine = line + poetWords[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > width - 60 && n > 0) {
-        ctx.fillText(`✨ ${line.trim()}`, width/2, y);
-        line = poetWords[n] + ' ';
-        y += 25;
-      } else {
-        line = testLine;
-      }
-    }
-    ctx.fillText(`✨ ${line.trim()}`, width/2, y);
-    
-    // Contexte (si disponible)
-    if (carte.contexte?.lieu !== 'non_specifie' || carte.mots_cles.length > 0) {
-      y += 50;
-      ctx.font = '14px Arial';
-      ctx.fillStyle = '#e0e0e0';
-      let contexteText = '🎯 ';
-      if (carte.contexte?.lieu !== 'non_specifie') contexteText += `📍${carte.contexte.lieu} `;
-      if (carte.mots_cles.length > 0) contexteText += `• ${carte.mots_cles.slice(0, 3).join(' • ')}`;
-      ctx.fillText(contexteText, width/2, y);
-    }
-    
-    // Insight
-    y += 50;
-    ctx.font = '16px Arial';
-    ctx.fillStyle = '#ffffff';
-    const insight = carte.insight_empathique;
-    
-    // Wrapper insight
-    const insightWords = insight.split(' ');
-    line = '';
-    for (let n = 0; n < insightWords.length; n++) {
-      const testLine = line + insightWords[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > width - 60 && n > 0) {
-        ctx.fillText(`💝 ${line.trim()}`, width/2, y);
-        line = insightWords[n] + ' ';
-        y += 25;
-      } else {
-        line = testLine;
-      }
-    }
-    ctx.fillText(`💝 ${line.trim()}`, width/2, y);
-    
-    // Footer
-    ctx.font = '12px Arial';
-    ctx.fillStyle = '#d0d0d0';
-    ctx.fillText('━━━━━━━━━━━━━━━━━━━', width/2, height - 80);
-    ctx.fillText('📚 Analysé par IA • Climatothèque', width/2, height - 50);
-    ctx.fillText(`${carte.date} • ${carte.heure}`, width/2, height - 30);
-    
-    // Sauvegarder l'image
-    const fileName = `carte-${carte.id}.png`;
-    const filePath = path.join(CARTES_DIR, fileName);
-    const buffer = canvas.toBuffer('image/png');
-    fs.writeFileSync(filePath, buffer);
-    
-    return {
-      success: true,
-      fileName: fileName,
-      url: `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/cartes/${fileName}`
-    };
-    
-  } catch (error) {
-    console.error('❌ Erreur génération carte:', error);
-    return { success: false, error: error.message };
-  }
 }
 
 // Fonction de génération de carte météo COMPLÈTE V4.0
@@ -674,71 +519,71 @@ function genererRapportPatterns(phoneNumber) {
   return rapport;
 }
 
-// Fonction de formatage de réponse V4.0 avec cartes visuelles
-async function formaterReponseV4(carte, patterns = null) {
-  try {
-    // Générer la carte visuelle
-    console.log('🎨 Génération carte visuelle...');
-    const carteVisuelle = await genererCarteVisuelle(carte);
-    
-    let response = '';
-    
-    // Warning si fallback utilisé
-    if (carte.fallback_used) {
-      response += `⚠️ Analyse simplifiée (IA temporairement indisponible)\n\n`;
-    }
-    
-    // Message textuel court (puisqu'on a la carte visuelle)
-    response += `${carte.meteo} Carte météo générée ! 🎨\n\n`;
-    
-    if (patterns && patterns.length > 0) {
-      response += `🌀 PATTERNS DÉTECTÉS:\n`;
-      patterns.slice(0, 1).forEach(pattern => {
-        response += `• ${pattern}\n`;
-      });
-      response += `\n`;
-    }
-    
-    response += `📚 Analysé par ${carte.fallback_used ? 'système de base' : 'IA Mistral'}\n`;
-    response += `   └ Tapez "patterns" pour voir tous vos patterns`;
-    
-    return {
-      message: response,
-      imageUrl: carteVisuelle.success ? carteVisuelle.url : null
-    };
-    
-  } catch (error) {
-    console.error('❌ Erreur formatage V4:', error);
-    
-    // Fallback texte si génération image échoue
-    let response = '';
-    response += `${carte.meteo} ═══ ${carte.nom_meteo} ═══\n`;
-    response += `${'●'.repeat(carte.intensite)}${'○'.repeat(5 - carte.intensite)} Intensité ${carte.intensite}/5\n\n`;
-    response += `💭 "${carte.message_original}"\n\n`;
-    response += `✨ ${carte.message_poetique}\n\n`;
-    response += `💝 ${carte.insight_empathique}\n\n`;
-    response += `📚 Carte ajoutée à ta climatothèque\n`;
-    response += `   └ ${carte.date} • ${carte.heure}`;
-    
-    return { message: response, imageUrl: null };
+// Fonction de formatage de réponse V4.0 (sans cartes visuelles)
+function formaterReponseV4(carte, patterns = null) {
+  let response = '';
+  
+  // Warning si fallback utilisé
+  if (carte.fallback_used) {
+    response += `⚠️ Analyse simplifiée (IA temporairement indisponible)\n\n`;
   }
+  
+  // Header avec intensité
+  const intensiteEmoji = '●'.repeat(carte.intensite) + '○'.repeat(5 - carte.intensite);
+  response += `${carte.meteo} ═══ ${carte.nom_meteo} ═══\n`;
+  response += `${intensiteEmoji} Intensité ${carte.intensite}/5\n\n`;
+  
+  // Citation + message poétique
+  response += `💭 "${carte.message_original}"\n\n`;
+  response += `✨ ${carte.message_poetique}\n\n`;
+  
+  // Contexte extrait (si significatif)
+  if (carte.contexte?.lieu !== 'non_specifie' || carte.contexte?.activite !== 'non_specifie' || carte.mots_cles.length > 0) {
+    response += `🎯 `;
+    if (carte.contexte.lieu !== 'non_specifie') response += `📍${carte.contexte.lieu} `;
+    if (carte.contexte.activite !== 'non_specifie') response += `⚡${carte.contexte.activite} `;
+    if (carte.contexte.personnes.length > 0) response += `👥${carte.contexte.personnes.join(', ')} `;
+    if (carte.mots_cles.length > 0) response += `• ${carte.mots_cles.slice(0, 3).join(' • ')}`;
+    response += `\n\n`;
+  }
+  
+  // Insight empathique IA
+  response += `💝 ${carte.insight_empathique}\n\n`;
+  
+  // Pattern détecté
+  if (patterns && patterns.length > 0) {
+    response += `🌀 PATTERNS DÉTECTÉS:\n`;
+    patterns.slice(0, 1).forEach(pattern => {
+      response += `• ${pattern}\n`;
+    });
+    response += `\n`;
+  }
+  
+  // Footer
+  response += `━━━━━━━━━━━━━━━━━━━\n`;
+  response += `📚 Analysé par ${carte.fallback_used ? 'système enrichi' : 'IA Mistral'}\n`;
+  response += `   └ ${carte.date} • ${carte.heure}`;
+  
+  return response;
 }
 
 // Routes
 app.get('/', (req, res) => {
   res.send(`
-    <h1>🌤️ MoodMap WhatsApp Bot V4.0</h1>
-    <p><strong>Status:</strong> 🟢 REVOLUTIONARY!</p>
+    <h1>🌤️ MoodMap WhatsApp Bot V4.0 - Smart Patterns</h1>
+    <p><strong>Status:</strong> 🟢 INTELLIGENT & STABLE!</p>
     <p><strong>Features:</strong></p>
     <ul>
-      <li>🧠 Mistral AI emotional analysis</li>
-      <li>🎨 Visual mood cards generation</li>
-      <li>📊 Advanced pattern detection</li>
-      <li>🛡️ Enriched fallback system</li>
-      <li>💝 Personalized empathic insights</li>
+      <li>🧠 Mistral AI emotional analysis with personalized insights</li>
+      <li>📊 Advanced pattern detection (places, people, activities)</li>
+      <li>🛡️ Enriched fallback system (50+ keywords per emotion)</li>
+      <li>💝 Unique poetic messages generated by AI</li>
+      <li>📈 Statistical correlations and trend analysis</li>
+      <li>🎯 Smart onboarding and user guidance</li>
     </ul>
     <p><strong>Mistral AI:</strong> ${MISTRAL_API_KEY ? '✅ Connected' : '❌ Not configured'}</p>
-    <p><strong>Visual Cards:</strong> ✅ Enabled</p>
+    <p><strong>Patterns:</strong> ✅ Advanced correlations enabled</p>
+    <p><strong>Commands:</strong> climatothèque, patterns</p>
     <p><strong>Webhook:</strong> <code>/webhook</code></p>
   `);
 });
@@ -746,29 +591,28 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   const stats = {
     status: 'OK',
-    version: '4.0 - REVOLUTION',
-    message: 'MoodMap Bot V4.0 - Visual Cards + Advanced Patterns!',
+    version: '4.0 - SMART PATTERNS',
+    message: 'MoodMap Bot V4.0 - Advanced Patterns + Enhanced AI!',
     timestamp: new Date().toISOString(),
     mistral_ai: MISTRAL_API_KEY ? 'Connected' : 'Not configured',
     features: [
       'Mistral AI emotion analysis',
-      'Visual mood cards generation', 
       'Advanced pattern detection',
-      'Enriched fallback system',
+      'Enriched fallback system (50+ keywords)', 
       'Personalized empathic insights',
       'Statistical correlations',
-      'Pattern predictions'
+      'Pattern predictions',
+      'Visual cards (coming with server upgrade)'
     ],
     total_users: climatheque.size,
-    total_cards: Array.from(climatheque.values()).reduce((sum, cards) => sum + cards.length, 0),
-    cards_generated_today: fs.readdirSync(CARTES_DIR).filter(f => f.includes(new Date().toISOString().split('T')[0])).length
+    total_cards: Array.from(climatheque.values()).reduce((sum, cards) => sum + cards.length, 0)
   };
   res.status(200).json(stats);
 });
 
 // Route principale WhatsApp V4.0
 app.post('/webhook', async (req, res) => {
-  console.log('📱 Message reçu V4.0 (REVOLUTION):', req.body);
+  console.log('📱 Message reçu V4.0 (SMART PATTERNS):', req.body);
   
   const incomingMessage = req.body.Body || '';
   const fromNumber = req.body.From || '';
@@ -782,10 +626,10 @@ app.post('/webhook', async (req, res) => {
     if (incomingMessage.toLowerCase().includes('climatothèque')) {
       const cartes = climatheque.get(fromNumber) || [];
       if (cartes.length === 0) {
-        const response = `📚 ═══ CLIMATOTHÈQUE V4.0 ═══\n\n🌱 Ta collection révolutionnaire est vide\n\n🧠 Partage ton état d'esprit:\n   • Analyse IA Mistral\n   • Carte visuelle générée\n   • Patterns personnalisés détectés !`;
+        const response = `📚 ═══ TA CLIMATOTHÈQUE ═══\n\n🌱 Ta collection d'analyses émotionnelles est encore vide.\n\n💡 POUR COMMENCER :\nPartage-moi simplement ton état d'esprit :\n• "Je suis fatigué aujourd'hui"\n• "Ça va plutôt bien !"\n• "Stressé par ce projet"\n\n🎯 Je vais analyser ton émotion et créer ta première carte météo personnalisée !\n\n✨ Chaque analyse révèle un aspect de ton paysage émotionnel.`;
         twiml.message(response);
       } else {
-        const response = `📚 ═══ CLIMATOTHÈQUE V4.0 ═══\n\n💎 ${cartes.length} carte${cartes.length > 1 ? 's' : ''} météo avec IA\n\n${cartes.slice(-3).map(c => `${c.meteo} ${c.date} • ${c.nom_meteo} ${'●'.repeat(c.intensite)}`).join('\n')}\n\n━━━━━━━━━━━━━━━━━━━\n🎨 Chaque carte = analyse IA + image générée\n📊 Tapez "patterns" pour vos corrélations`;
+        const response = `📚 ═══ TA CLIMATOTHÈQUE ═══\n\n💎 ${cartes.length} carte${cartes.length > 1 ? 's' : ''} météo analysée${cartes.length > 1 ? 's' : ''} par IA\n\n📈 TES DERNIÈRES ANALYSES :\n${cartes.slice(-3).map(c => `${c.meteo} ${c.date} • ${c.nom_meteo} ${'●'.repeat(c.intensite)}${'○'.repeat(5 - c.intensite)}`).join('\n')}\n\n━━━━━━━━━━━━━━━━━━━\n🧠 Chaque carte = analyse IA personnalisée\n📊 Tapez "patterns" pour voir vos corrélations\n💡 Continuez à partager vos émotions pour plus de patterns !`;
         twiml.message(response);
       }
     }
@@ -793,24 +637,19 @@ app.post('/webhook', async (req, res) => {
       const rapport = genererRapportPatterns(fromNumber);
       twiml.message(rapport);
     }
-    // Analyse complète avec carte visuelle
+    // Analyse complète
     else if (incomingMessage.length > 8) {
       console.log('🚀 Début analyse V4.0 complète...');
       const carte = await genererCarteComplete(incomingMessage, fromNumber);
       const patterns = detecterPatternsAvances(fromNumber);
-      const response = await formaterReponseV4(carte, patterns);
+      const response = formaterReponseV4(carte, patterns);
       
-      const message = twiml.message(response.message);
-      if (response.imageUrl) {
-        message.media(response.imageUrl);
-        console.log('🎨 Carte visuelle envoyée:', response.imageUrl);
-      }
-      
+      twiml.message(response);
       console.log('✅ Réponse V4.0 générée avec succès');
     }
-    // Message d'accueil
+    // Message d'accueil et onboarding
     else {
-      const response = `🌤️ ═══ MOODMAP V4.0 ═══\n\n🚀 RÉVOLUTION: IA + Cartes Visuelles\n\n💬 Décris ton état d'esprit:\n   "Stressé par ce projet urgent"\n   "Heureuse de revoir ma sœur"\n\n🎨 Tu recevras:\n   • Analyse IA Mistral personnalisée\n   • Belle carte météo visuelle\n   • Patterns émotionnels détectés\n\n━━━━━━━━━━━━━━━━━━━\n📚 "climatothèque" → Tes cartes\n📊 "patterns" → Tes corrélations`;
+      const response = `🌤️ ═══ BIENVENUE SUR MOODMAP ═══\n\n👋 Salut ! Je suis ton assistant d'intelligence émotionnelle.\n\n💬 COMMENT ÇA MARCHE :\nDécris-moi ton état d'esprit en une phrase :\n• "Je me sens stressé au travail"\n• "Super heureuse avec mes amis" \n• "Un peu confus aujourd'hui"\n\n🎯 JE VAIS :\n• Analyser ton émotion avec l'IA Mistral\n• Te donner ta "météo émotionnelle" 🌦️\n• Détecter tes patterns personnels\n• Générer des insights empathiques\n\n📚 COMMANDES UTILES :\n• "climatothèque" → Ton historique complet\n• "patterns" → Tes corrélations intelligentes\n\n━━━━━━━━━━━━━━━━━━━\n✨ Essaie maintenant avec ton humeur du moment !`;
       twiml.message(response);
     }
     
@@ -824,12 +663,12 @@ app.post('/webhook', async (req, res) => {
 
 // Démarrer le serveur
 app.listen(PORT, () => {
-  console.log(`🚀 MoodMap WhatsApp Bot V4.0 REVOLUTION démarré sur le port ${PORT}`);
+  console.log(`🚀 MoodMap WhatsApp Bot V4.0 SMART PATTERNS démarré sur le port ${PORT}`);
   console.log(`🧠 Mistral AI: ${MISTRAL_API_KEY ? 'ACTIVÉ ✅' : 'NON CONFIGURÉ ❌'}`);
-  console.log(`🎨 Cartes visuelles: ACTIVÉES ✅`);
   console.log(`📊 Patterns avancés: ACTIVÉS ✅`);
-  console.log(`🛡️ Fallback enrichi: ACTIVÉ ✅`);
+  console.log(`🛡️ Fallback enrichi (50+ mots-clés): ACTIVÉ ✅`);
+  console.log(`💝 Messages IA personnalisés: ACTIVÉS ✅`);
+  console.log(`🎯 Onboarding intelligent: ACTIVÉ ✅`);
   console.log(`🌐 URL: ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}`);
   console.log(`📱 Webhook: ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/webhook`);
-  console.log(`🎨 Cartes stockées dans: ${CARTES_DIR}`);
 });
