@@ -408,34 +408,7 @@ app.post('/webhook', async (req, res) => {
     const twiml = new twilio.twiml.MessagingResponse();
     let responseMessage = '';
     
-    // 🆘 COMMANDES SPÉCIALES
-    // Message d'accueil pour messages courts
-    if (incomingMessage.length <= 8 || 
-        ['help', 'aide', 'menu', '?', 'salut', 'hello', 'hi', 'bonjour', 'bonsoir', 'test'].includes(incomingMessage.toLowerCase())) {
-      
-      responseMessage = `🌤️ ═══ BIENVENUE SUR MOODMAP ═══\n\n`;
-      responseMessage += `👋 Salut ! Je suis ton assistant d'intelligence émotionnelle.\n\n`;
-      responseMessage += `💬 COMMENT ÇA MARCHE :\n`;
-      responseMessage += `Décris-moi ton état d'esprit en une phrase :\n`;
-      responseMessage += `• "Je me sens stressé au travail"\n`;
-      responseMessage += `• "Super heureuse avec mes amis"\n`;
-      responseMessage += `• "Un peu confus aujourd'hui"\n\n`;
-      responseMessage += `🎯 JE VAIS :\n`;
-      responseMessage += `• Analyser ton émotion avec l'IA Mistral\n`;
-      responseMessage += `• Te donner ta "météo émotionnelle" 🌦️\n`;
-      responseMessage += `• Détecter tes habitudes personnelles\n`;
-      responseMessage += `• Générer des observations empathiques\n\n`;
-      responseMessage += `📚 COMMANDES UTILES :\n`;
-      responseMessage += `• "journal" → Ton historique complet\n`;
-      responseMessage += `• "habitudes" → Tes corrélations intelligentes\n\n`;
-      responseMessage += `━━━━━━━━━━━━━━━━━━━\n`;
-      responseMessage += `✨ Essaie maintenant avec ton humeur du moment !`;
-      
-      twiml.message(responseMessage);
-      return res.type('text/xml').send(twiml.toString());
-    }
-    
-    // 📚 Commande JOURNAL (climatothèque)
+    // 📚 Commande JOURNAL (priorité sur message d'accueil)
     if (incomingMessage.toLowerCase().includes('journal') || 
         incomingMessage.toLowerCase().includes('climato') ||
         incomingMessage.toLowerCase().includes('historique')) {
@@ -473,7 +446,7 @@ app.post('/webhook', async (req, res) => {
       return res.type('text/xml').send(twiml.toString());
     }
     
-    // 📊 Commande HABITUDES/PATTERNS
+    // 📊 Commande HABITUDES/PATTERNS (priorité sur message d'accueil)
     if (incomingMessage.toLowerCase().includes('habitudes') || 
         incomingMessage.toLowerCase().includes('pattern') ||
         incomingMessage.toLowerCase().includes('tendance') ||
@@ -481,6 +454,32 @@ app.post('/webhook', async (req, res) => {
       
       const analyse = analyserHabitudes(fromNumber);
       twiml.message(analyse.message);
+      return res.type('text/xml').send(twiml.toString());
+    }
+    
+    // 🆘 COMMANDES SPÉCIALES - Message d'accueil pour messages courts
+    if (incomingMessage.length <= 8 || 
+        ['help', 'aide', 'menu', '?', 'salut', 'hello', 'hi', 'bonjour', 'bonsoir', 'test'].includes(incomingMessage.toLowerCase())) {
+      
+      responseMessage = `🌤️ ═══ BIENVENUE SUR MOODMAP ═══\n\n`;
+      responseMessage += `👋 Salut ! Je suis ton assistant d'intelligence émotionnelle.\n\n`;
+      responseMessage += `💬 COMMENT ÇA MARCHE :\n`;
+      responseMessage += `Décris-moi ton état d'esprit en une phrase :\n`;
+      responseMessage += `• "Je me sens stressé au travail"\n`;
+      responseMessage += `• "Super heureuse avec mes amis"\n`;
+      responseMessage += `• "Un peu confus aujourd'hui"\n\n`;
+      responseMessage += `🎯 JE VAIS :\n`;
+      responseMessage += `• Analyser ton émotion avec l'IA Mistral\n`;
+      responseMessage += `• Te donner ta "météo émotionnelle" 🌦️\n`;
+      responseMessage += `• Détecter tes habitudes personnelles\n`;
+      responseMessage += `• Générer des observations empathiques\n\n`;
+      responseMessage += `📚 COMMANDES UTILES :\n`;
+      responseMessage += `• "journal" → Ton historique complet\n`;
+      responseMessage += `• "habitudes" → Tes corrélations intelligentes\n\n`;
+      responseMessage += `━━━━━━━━━━━━━━━━━━━\n`;
+      responseMessage += `✨ Essaie maintenant avec ton humeur du moment !`;
+      
+      twiml.message(responseMessage);
       return res.type('text/xml').send(twiml.toString());
     }
     
