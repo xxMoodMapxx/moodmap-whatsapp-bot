@@ -2,7 +2,7 @@ const express = require('express');
 const twilio = require('twilio');
 const bodyParser = require('body-parser');
 const axios = require('axios');
-const { createCanvas, loadImage } = require('canvas');
+// const { createCanvas, loadImage } = require('canvas'); // TEMPORAIRE - Canvas désactivé
 require('dotenv').config();
 
 const app = express();
@@ -1297,89 +1297,8 @@ Réponds UNIQUEMENT avec un objet JSON contenant:
 }
 
 async function createVisualCard(meteo, message, analysis) {
-  try {
-    console.log('🎨 Génération carte visuelle...');
-    
-    // Créer canvas
-    const canvas = createCanvas(400, 600);
-    const ctx = canvas.getContext('2d');
-    
-    // Background gradient basé sur la couleur de la météo
-    const gradient = ctx.createLinearGradient(0, 0, 0, 600);
-    gradient.addColorStop(0, meteo.couleur);
-    gradient.addColorStop(1, '#FFFFFF');
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 400, 600);
-    
-    // Météo emoji (gros)
-    ctx.font = '80px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(meteo.emoji, 200, 120);
-    
-    // Nom météo
-    ctx.fillStyle = '#333333';
-    ctx.font = 'bold 24px Arial';
-    ctx.fillText(meteo.nom, 200, 180);
-    
-    // Message original (tronqué si nécessaire)
-    ctx.font = '16px Arial';
-    ctx.fillStyle = '#555555';
-    const messageTronque = message.length > 60 ? message.substring(0, 60) + '...' : message;
-    ctx.fillText(messageTronque, 200, 220);
-    
-    // Intensité (barre)
-    ctx.fillStyle = meteo.couleur;
-    ctx.fillRect(50, 260, (analysis.intensite / 10) * 300, 20);
-    ctx.strokeStyle = '#333333';
-    ctx.strokeRect(50, 260, 300, 20);
-    
-    ctx.fillStyle = '#333333';
-    ctx.font = '14px Arial';
-    ctx.fillText(`Intensité ${analysis.intensite}/10`, 200, 300);
-    
-    // Message poétique
-    ctx.font = '16px Arial';
-    ctx.fillStyle = '#444444';
-    ctx.textAlign = 'center';
-    const words = analysis.message_poetique.split(' ');
-    let line = '';
-    let y = 350;
-    
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      const testWidth = metrics.width;
-      if (testWidth > 350 && n > 0) {
-        ctx.fillText(line, 200, y);
-        line = words[n] + ' ';
-        y += 25;
-      } else {
-        line = testLine;
-      }
-    }
-    ctx.fillText(line, 200, y);
-    
-    // Date/heure
-    ctx.font = '12px Arial';
-    ctx.fillStyle = '#666666';
-    const maintenant = new Date();
-    const dateStr = maintenant.toLocaleDateString('fr-FR');
-    const heureStr = maintenant.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
-    ctx.fillText(`${dateStr} • ${heureStr}`, 200, 550);
-    
-    // Logo MoodMap
-    ctx.fillText('🌈 MoodMap', 200, 580);
-    
-    const buffer = canvas.toBuffer('image/png');
-    console.log('✅ Carte visuelle générée');
-    
-    return buffer;
-    
-  } catch (error) {
-    console.error('❌ Erreur génération carte visuelle:', error);
-    return null;
-  }
+  console.log('🎨 Cartes visuelles désactivées temporairement');
+  return null;
 }
 
 // ===== INITIALISATION UTILISATEUR =====
@@ -1559,13 +1478,8 @@ Je vais détecter tes patterns cachés et révéler ce qui influence vraiment to
     
     console.log(`💾 Carte stockée pour ${fromNumber}`);
     
-    // Générer carte visuelle (optionnel pour POC)
-    let carteVisuelle = null;
-    try {
-      carteVisuelle = await createVisualCard(meteo, messageBody, analysis);
-    } catch (error) {
-      console.log('🎨 Carte visuelle désactivée pour POC');
-    }
+    // Générer carte visuelle (désactivée temporairement)
+    console.log('🎨 Cartes visuelles désactivées temporairement');
     
     // Construire message de réponse
     let responseMessage = `${meteo.emoji} ${meteo.nom.toUpperCase()}\n\n`;
@@ -1627,7 +1541,6 @@ app.get('/', (req, res) => {
       "Patterns multi-dimensionnels",
       "Navigation journal/habitudes",
       "Notifications proactives",
-      "Cartes visuelles Canvas",
       "Résumés automatiques"
     ]
   };
@@ -1693,7 +1606,6 @@ app.listen(port, () => {
   console.log(`🔍 Patterns multi-dimensionnels: ACTIVÉS ✅`);
   console.log(`📊 Navigation journal/habitudes: ACTIVÉE ✅`);
   console.log(`🔔 Notifications proactives: ACTIVÉES ✅`);
-  console.log(`🎨 Cartes visuelles Canvas: ACTIVÉES ✅`);
   console.log(`📈 Résumés automatiques: ACTIVÉS ✅`);
   console.log(`🕵️‍♂️ Sherlock Holmes des émotions: OPÉRATIONNEL ! 💪`);
 });
