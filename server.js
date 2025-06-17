@@ -305,12 +305,9 @@ Format JSON requis:
   "famille": "famille d'émotion (joie, tristesse, colère, peur, surprise, dégoût, sérénité, amour, fatigue, motivation)",
   "intensite": nombre de 1 à 10,
   "nuance": "nuance spécifique de l'émotion",
-  "cause": "résumé court et empathique de la cause/situation, langage humain et chaleureux",
+  "cause": "résumé court de la cause/situation",
   "emotions_secondaires": [{"emotion": "nom", "intensite": nombre}]
 }
-
-Pour le champ "cause", utilise un langage empathique et humain, pas clinique.
-Exemple: au lieu de "Activité physique malgré douleur" → "Écouter son corps malgré l'inconfort"
 
 Sois précis et factuel.`
       }],
@@ -421,23 +418,24 @@ Résumé :`
     }
   }
 }
+// ===== GÉNÉRATEUR PHRASE HUMAINE - AMÉLIORATION V6.1+ =====
 // OBJECTIF : Phrase empathique, naturelle, sans poésie (comme un ami/coach)
 // AMÉLIORATION : Tonalité adaptée selon météo émotionnelle
 
 // Mapping météo → tonalité pour phrases humaines
 const tonaliteParMeteo = {
   '🌈': 'enthousiaste et complice',
-  '☁️': 'doux, compréhensif et calme', 
+  '☁️': 'doux, comprehensif et calme', 
   '🍃': 'tonique et encourageant',
-  '🌧️': 'réconfortant et sincère',
+  '🌧️': 'reconfortant et sincere',
   '⛈️': 'solennel mais rassurant',
-  '🌫️': 'posé et à l'écoute',
+  '🌫️': 'pose et a l\'ecoute',
   '💨': 'direct mais bienveillant',
   '🌨️': 'doux et patient',
   '☀️': 'chaleureux et optimiste',
-  '🌞': 'plein d'énergie positive',
-  '🌤️': 'léger et encourageant',
-  '🌅': 'tendre et connecté'
+  '🌞': 'plein d\'energie positive',
+  '🌤️': 'leger et encourageant',
+  '🌅': 'tendre et connecte'
 };
 
 function getTonaliteFromMeteo(meteoEmoji) {
@@ -449,38 +447,36 @@ async function generatePhraseHumaine(analysis, messageOriginal, meteoEmoji) {
   
   try {
     const emotionsText = `${analysis.emotion_principale}${analysis.nuance ? ' (' + analysis.nuance + ')' : ''} — ${analysis.intensite}/10`;
+    const emotionsSecondaires = analysis.emotions_secondaires?.slice(0, 2).map(emo => `${emo.emotion} — ${emo.intensite}/10`).join('\n');
     const tonalite = getTonaliteFromMeteo(meteoEmoji);
     
     const response = await axios.post('https://api.mistral.ai/v1/chat/completions', {
       model: 'mistral-tiny',
       messages: [{
         role: 'user',
-        content: `Tu es un ami proche ou un coach bienveillant.
-Ton rôle est de reformuler en une seule phrase courte ce que vit la personne, de manière humaine, naturelle et ${tonalite}.
+        content: `Tu es une IA empathique et concise, qui reformule de manière naturelle ce que la personne a vécu aujourd'hui.
 
-Contraintes :
-- Ne redis pas les mots du message original.
-- Ne fais pas de poésie ni de généralités vagues.
-- Ne surjoue pas. Pas de "je suis ravi", ni "je suis sûr que…"
-- N'invente rien. Reformule simplement avec empathie.
-- Maximum 12-15 mots.
+Voici le message original de la personne :
+"${messageOriginal}"
 
-Objectif :
-Fais ressortir le **vécu émotionnel réel** derrière le message, en l'exprimant comme le ferait un ami.
+Voici les émotions détectées, avec leur intensité :
+${emotionsText}${emotionsSecondaires ? '\n' + emotionsSecondaires : ''}
 
-Message à reformuler: "${messageOriginal}"
-Émotions détectées: ${emotionsText}
-Cause: ${analysis.cause}
+Voici le résumé factuel de ce vécu :
+${analysis.cause}
 
-Exemples de style attendu :
-"Tu écoutes ton corps et ton besoin de bouger, même si ce n'est pas facile."
-"Tu tiens à partager un vrai bon moment avec ton pote, à ta façon."
-"Tu sens que ton corps te parle et t'invite à changer de rythme."
+Ta tâche :
+→ Génère **une seule phrase** courte, fluide et naturelle qui reformule ce vécu avec empathie, sans exagération ni ton lyrique.
+→ Tu peux reformuler librement, **sans répéter mot à mot** les éléments du message ou du résumé.
+→ N'utilise **aucune phrase toute faite**, ni formule de coach, ni tournure psychologique.
+→ Adopte un ton humain, sobre, chaleureux – comme un ami bienveillant.
+→ Ta phrase doit **refléter les émotions détectées**, sans forcer le trait.
+→ Adopte un registre ${tonalite}.
 
-Une seule phrase courte, naturelle, sans répétition du message original.`
+Rappel : pas de liste, pas de deuxième phrase, pas de commentaire sur l'IA ou le résumé. Juste **une phrase naturelle**, point.`
       }],
       temperature: 0.4,
-      max_tokens: 50
+      max_tokens: 40
     }, {
       headers: {
         'Authorization': `Bearer ${mistralApiKey}`,
@@ -498,10 +494,10 @@ Une seule phrase courte, naturelle, sans répétition du message original.`
     const tonalite = getTonaliteFromMeteo(meteoEmoji);
     if (tonalite.includes('encourageant')) {
       return "Tu partages quelque chose d'important, ça se ressent.";
-    } else if (tonalite.includes('compréhensif')) {
-      return "Je sens que c'est pas évident pour toi en ce moment.";
+    } else if (tonalite.includes('comprehensif')) {
+      return "Je sens que c'est pas evident pour toi en ce moment.";
     } else {
-      return "Tu vis quelque chose d'authentique, c'est précieux.";
+      return "Tu vis quelque chose d'authentique, c'est precieux.";
     }
   }
 }
@@ -879,7 +875,12 @@ async function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
     meteoLine = `${meteoEmoji} ${meteoNom}\n\n`;
   }
   
-  // NOUVEAU V6.1 : Générer phrase humaine empathique avec tonalité météo
+  // NOUVEAU V6.1+ : Générer résumé clair et factuel
+  console.log('📝 Génération résumé clair...');
+  const resumeClair = await generateResume(messageOriginal, analysis);
+  console.log('📝 Résumé généré:', resumeClair);
+  
+  // NOUVEAU V6.1+ : Générer phrase humaine empathique avec tonalité météo
   const phraseHumaine = await generatePhraseHumaine(analysis, messageOriginal, meteoEmoji);
   
   // Construire la carte
@@ -898,14 +899,14 @@ async function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
   }
   
   carte += `\nRésumé :\n`;
-  carte += analysis.cause || `Tu ressens ${analysis.emotion_principale} à un niveau ${analysis.intensite}/10.`;
+  carte += resumeClair || `Tu ressens ${analysis.emotion_principale} à un niveau ${analysis.intensite}/10.`;
   
   // NOUVEAU V6.1 : Phrase humaine bonus
   carte += `\n\n✨ ${phraseHumaine}`;
   
   carte += `\n\nPour annuler cette carte, réponds : annule`;
   
-  // Stocker la carte avec les nouvelles données météo
+  // Stocker la carte avec les nouvelles données météo + résumé clair + phrase humaine
   const carteData = {
     id: carteId,
     timestamp: new Date().toISOString(),
@@ -914,7 +915,8 @@ async function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
     famille: analysis.famille,
     intensite: analysis.intensite,
     nuance: analysis.nuance,
-    cause: analysis.cause,
+    cause: analysis.cause, // Résumé original de l'IA
+    resume_clair: resumeClair, // Nouveau résumé optimisé
     emotions_secondaires: analysis.emotions_secondaires,
     meteo_emoji: meteoEmoji,
     meteo_nom: meteoNom,
@@ -1054,14 +1056,14 @@ app.post('/webhook', async (req, res) => {
 // ===== ROUTES SANTÉ + EXPORT =====
 app.get('/', (req, res) => {
   const stats = {
-    version: "6.1+ RÉVOLUTIONNAIRE",
+    version: "6.1+ V7 STABLE",
     uptime: process.uptime(),
     users: Object.keys(userData).length,
     total_cartes: Object.values(userData).reduce((sum, user) => sum + (user.cartes?.length || 0), 0),
     features: [
       "UX Clean & Product-Ready",
       "Gestion cas particuliers complète", 
-      "Template carte avec phrase humaine IA optimisée",
+      "Template carte avec résumé clair + phrase humaine IA V7",
       "Tonalité adaptée selon météo émotionnelle",
       "Navigation intuitive",
       "Révélations croisées multi-dimensionnelles",
@@ -1088,7 +1090,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.1+',
+    version: '6.1+ V7',
     persistence: 'active'
   });
 });
@@ -1107,16 +1109,16 @@ setInterval(() => {
 
 // ===== DÉMARRAGE SERVEUR =====
 app.listen(port, () => {
-  console.log(`🚀 MoodMap WhatsApp Bot V6.1+ RÉVOLUTIONNAIRE démarré sur port ${port}`);
+  console.log(`🚀 MoodMap WhatsApp Bot V6.1+ V7 STABLE démarré sur port ${port}`);
   console.log(`🎯 Focus UX : Clean, Sans Friction, Product-Ready`);
-  console.log(`🧠 IA Émotionnelle : Analyse Mistral + Phrase Humaine optimisée`);
-  console.log(`💬 Tonalité adaptée : Selon météo émotionnelle`);
+  console.log(`🧠 IA Émotionnelle : Analyse Mistral + Phrase Humaine V7 optimisée`);
+  console.log(`💬 Prompt V7 : Ton sobre, empathique, sans répétition`);
   console.log(`🔧 Gestion cas particuliers : Complète`);
-  console.log(`📱 Template cartes : Simplifié + empathique + concis`);
+  console.log(`📱 Template cartes : Résumé clair + empathique + concis`);
   console.log(`⚙️ Paramètres utilisateur : Configurables`);
   console.log(`🌤️ Météo système figé : 10 familles × 5 intensités + variations`);
   console.log(`🔮 Révélations croisées : Analyses multi-dimensionnelles`);
   console.log(`💾 Persistance : userData.json automatique (60s)`);
   console.log(`📥 Export manuel : ${process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + port}/export`);
-  console.log(`💪 Ready for revolutionary insights with optimized empathy !`);
+  console.log(`💪 Ready for revolutionary insights with V7 stable empathy !`);
 });
