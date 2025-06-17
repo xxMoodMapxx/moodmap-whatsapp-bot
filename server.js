@@ -15,6 +15,21 @@ app.use(bodyParser.urlencoded({ extended: false }));
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const mistralApiKey = process.env.MISTRAL_API_KEY;
+
+// Vérification variables d'environnement
+if (!accountSid || !authToken) {
+  console.error('❌ ERREUR : Variables Twilio manquantes !');
+  console.error('➡️  TWILIO_ACCOUNT_SID:', accountSid ? 'OK' : 'MANQUANT');
+  console.error('➡️  TWILIO_AUTH_TOKEN:', authToken ? 'OK' : 'MANQUANT');
+  console.error('🔧 Configure tes variables d\'environnement sur Render !');
+  process.exit(1);
+}
+
+if (!mistralApiKey) {
+  console.error('❌ ERREUR : MISTRAL_API_KEY manquant !');
+  process.exit(1);
+}
+
 const client = twilio(accountSid, authToken);
 
 console.log('🚀 MoodMap WhatsApp Bot V6.0 PRODUCT démarré sur port 10000');
