@@ -1,10 +1,11 @@
-// MoodMap WhatsApp Bot V6.0 PRODUCT 🚀
-// Clean, Product-Ready, User-Focused
+// MoodMap WhatsApp Bot V6.1 RÉVOLUTIONNAIRE 🚀
+// Clean, Product-Ready, User-Focused + Révélations Croisées + Phrase Humaine IA + PERSISTANCE
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const axios = require('axios');
+const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -32,12 +33,25 @@ if (!mistralApiKey) {
 
 const client = twilio(accountSid, authToken);
 
-console.log('🚀 MoodMap WhatsApp Bot V6.0 PRODUCT démarré sur port 10000');
+console.log('🚀 MoodMap WhatsApp Bot V6.1 RÉVOLUTIONNAIRE démarré sur port 10000');
 console.log('🎯 Focus : UX Clean, Sans Friction, Product-Ready');
 console.log('💪 Ready for real users !');
 
-// ===== BASE DE DONNÉES EN MÉMOIRE =====
-let userData = {}; // Structure: {userId: {cartes: [], habitudes: [], config: {}}}
+// ===== BASE DE DONNÉES EN MÉMOIRE + PERSISTANCE =====
+// Charger les données sauvegardées si le fichier existe
+let userData = {};
+if (fs.existsSync('userData.json')) {
+  try {
+    userData = JSON.parse(fs.readFileSync('userData.json'));
+    console.log('✅ Données utilisateur restaurées depuis userData.json');
+    console.log(`📊 ${Object.keys(userData).length} utilisateurs rechargés`);
+  } catch (err) {
+    console.error('⚠️ Erreur de lecture du fichier userData.json :', err);
+    userData = {};
+  }
+} else {
+  console.log('📁 Nouveau fichier userData.json sera créé');
+}
 
 // ===== CONFIGURATION UTILISATEUR PAR DÉFAUT =====
 const defaultUserConfig = {
@@ -52,7 +66,7 @@ const defaultUserConfig = {
 
 // ===== FAMILLES D'ÉMOTIONS =====
 const famillesEmotions = {
-  joie: ['plaisir', 'fierté', 'amusement', 'gratitude', 'bonheur', 'euphorie'],
+  joie: ['plaisir', 'fierté', 'amusement', 'gratitude', 'bonheur', 'euphorie', 'satisfaction', 'contentement'],
   tristesse: ['mélancolie', 'solitude', 'peine', 'chagrin', 'désespoir'],
   colère: ['irritation', 'frustration', 'rage', 'agacement', 'fureur'],
   peur: ['inquiétude', 'anxiété', 'stress', 'angoisse', 'terreur'],
@@ -64,88 +78,91 @@ const famillesEmotions = {
   motivation: ['espoir', 'enthousiasme', 'détermination', 'ambition']
 };
 
-// ===== MÉTÉOS ÉMOTIONNELLES - SYSTÈME FIGÉ (Familles × Intensité 1-5) =====
+// ===== MÉTÉOS ÉMOTIONNELLES - SYSTÈME FIGÉ AVEC VARIATIONS =====
 // PRINCIPE : Structure fixe par famille d'émotion avec 5 niveaux d'intensité précis
-// OBJECTIF : Cohérence, prévisibilité, mapping exact émotion/intensité → météo
-// ÉVITER : Génération aléatoire, variabilité, incohérence entre sessions
+// AMÉLIORATION V6.1 : Variations textuelles pour éviter répétitions monotones
+// OBJECTIF : Cohérence + diversité pour meilleure UX
 const meteoEmotionnelle = {
   joie: [
-    { niveau: 1, label: "Soleil timide", emoji: "🌤️" },
-    { niveau: 2, label: "Soleil doux", emoji: "🌤️" },
-    { niveau: 3, label: "Soleil radieux", emoji: "☀️" },
-    { niveau: 4, label: "Soleil éclatant", emoji: "☀️" },
-    { niveau: 5, label: "Soleil chaleureux", emoji: "🌞" }
+    { niveau: 1, variants: ["Soleil timide", "Première lueur", "Soleil naissant"], emoji: "🌤️" },
+    { niveau: 2, variants: ["Soleil doux", "Chaleur tendre", "Soleil caressant"], emoji: "🌤️" },
+    { niveau: 3, variants: ["Soleil radieux", "Soleil lumineux", "Éclat solaire"], emoji: "☀️" },
+    { niveau: 4, variants: ["Soleil éclatant", "Soleil triomphant", "Soleil ardent"], emoji: "☀️" },
+    { niveau: 5, variants: ["Soleil chaleureux", "Soleil flamboyant", "Brasier solaire"], emoji: "🌞" }
   ],
   tristesse: [
-    { niveau: 1, label: "Gouttes éparses", emoji: "🌧️" },
-    { niveau: 2, label: "Bruine légère", emoji: "🌧️" },
-    { niveau: 3, label: "Averse modérée", emoji: "🌧️" },
-    { niveau: 4, label: "Pluie battante", emoji: "🌧️" },
-    { niveau: 5, label: "Déluge", emoji: "🌧️" }
+    { niveau: 1, variants: ["Gouttes éparses", "Fine bruine", "Larmes du ciel"], emoji: "🌧️" },
+    { niveau: 2, variants: ["Bruine légère", "Pluie douce", "Ondée passagère"], emoji: "🌧️" },
+    { niveau: 3, variants: ["Averse modérée", "Pluie soutenue", "Crachin tenace"], emoji: "🌧️" },
+    { niveau: 4, variants: ["Pluie battante", "Averse intense", "Forte ondée"], emoji: "🌧️" },
+    { niveau: 5, variants: ["Déluge", "Pluie torrentielle", "Cataracte"], emoji: "🌧️" }
   ],
   colère: [
-    { niveau: 1, label: "Brise légère", emoji: "💨" },
-    { niveau: 2, label: "Vent frais", emoji: "💨" },
-    { niveau: 3, label: "Vent soutenu", emoji: "💨" },
-    { niveau: 4, label: "Bourrasques", emoji: "💨" },
-    { niveau: 5, label: "Tempête", emoji: "💨" }
+    { niveau: 1, variants: ["Brise légère", "Souffle irrité", "Vent murmure"], emoji: "💨" },
+    { niveau: 2, variants: ["Vent frais", "Brise agitée", "Courant d'air"], emoji: "💨" },
+    { niveau: 3, variants: ["Vent soutenu", "Bourrasque naissante", "Vent constant"], emoji: "💨" },
+    { niveau: 4, variants: ["Bourrasques", "Vent violent", "Rafales puissantes"], emoji: "💨" },
+    { niveau: 5, variants: ["Tempête", "Ouragan", "Cyclone"], emoji: "💨" }
   ],
   peur: [
-    { niveau: 1, label: "Légère brume", emoji: "🌫️" },
-    { niveau: 2, label: "Brouillard diffus", emoji: "🌫️" },
-    { niveau: 3, label: "Brouillard épais", emoji: "🌫️" },
-    { niveau: 4, label: "Brouillard dense", emoji: "🌫️" },
-    { niveau: 5, label: "Brouillard opaque", emoji: "🌫️" }
+    { niveau: 1, variants: ["Légère brume", "Voile subtil", "Brume matinale"], emoji: "🌫️" },
+    { niveau: 2, variants: ["Brouillard diffus", "Nuée légère", "Vapeur floue"], emoji: "🌫️" },
+    { niveau: 3, variants: ["Brouillard épais", "Nappe brumeuse", "Voile dense"], emoji: "🌫️" },
+    { niveau: 4, variants: ["Brouillard dense", "Brume opaque", "Nuage au sol"], emoji: "🌫️" },
+    { niveau: 5, variants: ["Brouillard opaque", "Mur de brume", "Néant blanc"], emoji: "🌫️" }
   ],
   surprise: [
-    { niveau: 1, label: "Ciel menaçant", emoji: "⛈️" },
-    { niveau: 2, label: "Premiers grondements", emoji: "⛈️" },
-    { niveau: 3, label: "Orage modéré", emoji: "⛈️" },
-    { niveau: 4, label: "Orage fort", emoji: "⛈️" },
-    { niveau: 5, label: "Orage violent", emoji: "⛈️" }
+    { niveau: 1, variants: ["Ciel menaçant", "Nuages sombres", "Tension électrique"], emoji: "⛈️" },
+    { niveau: 2, variants: ["Premiers grondements", "Tonnerre lointain", "Écho sourd"], emoji: "⛈️" },
+    { niveau: 3, variants: ["Orage modéré", "Tonnerre proche", "Éclairs discrets"], emoji: "⛈️" },
+    { niveau: 4, variants: ["Orage fort", "Tonnerre puissant", "Éclairs vifs"], emoji: "⛈️" },
+    { niveau: 5, variants: ["Orage violent", "Foudre déchaînée", "Tempête électrique"], emoji: "⛈️" }
   ],
   dégoût: [
-    { niveau: 1, label: "Flocons épars", emoji: "🌨️" },
-    { niveau: 2, label: "Petite neige", emoji: "🌨️" },
-    { niveau: 3, label: "Neige modérée", emoji: "🌨️" },
-    { niveau: 4, label: "Neige épaisse", emoji: "🌨️" },
-    { niveau: 5, label: "Tempête de neige", emoji: "🌨️" }
+    { niveau: 1, variants: ["Flocons épars", "Neige timide", "Première neige"], emoji: "🌨️" },
+    { niveau: 2, variants: ["Petite neige", "Neige douce", "Flocons dansants"], emoji: "🌨️" },
+    { niveau: 3, variants: ["Neige modérée", "Chute continue", "Neige soutenue"], emoji: "🌨️" },
+    { niveau: 4, variants: ["Neige épaisse", "Chute dense", "Neige lourde"], emoji: "🌨️" },
+    { niveau: 5, variants: ["Tempête de neige", "Blizzard", "Neige aveuglante"], emoji: "🌨️" }
   ],
   sérénité: [
-    { niveau: 1, label: "Arc-en-ciel pâle", emoji: "🌈" },
-    { niveau: 2, label: "Arc-en-ciel délicat", emoji: "🌈" },
-    { niveau: 3, label: "Arc-en-ciel lumineux", emoji: "🌈" },
-    { niveau: 4, label: "Arc-en-ciel vibrant", emoji: "🌈" },
-    { niveau: 5, label: "Arc-en-ciel flamboyant", emoji: "🌈" }
+    { niveau: 1, variants: ["Arc-en-ciel pâle", "Lueur colorée", "Spectre délicat"], emoji: "🌈" },
+    { niveau: 2, variants: ["Arc-en-ciel délicat", "Prisme tendre", "Couleurs douces"], emoji: "🌈" },
+    { niveau: 3, variants: ["Arc-en-ciel lumineux", "Voûte colorée", "Prisme clair"], emoji: "🌈" },
+    { niveau: 4, variants: ["Arc-en-ciel vibrant", "Spectre éclatant", "Couleurs vives"], emoji: "🌈" },
+    { niveau: 5, variants: ["Arc-en-ciel flamboyant", "Prisme magique", "Éclat multicolore"], emoji: "🌈" }
   ],
   amour: [
-    { niveau: 1, label: "Aurore naissante", emoji: "🌅" },
-    { niveau: 2, label: "Aube claire", emoji: "🌅" },
-    { niveau: 3, label: "Premier rayon", emoji: "🌅" },
-    { niveau: 4, label: "Éclat doré", emoji: "🌅" },
-    { niveau: 5, label: "Soleil levé", emoji: "🌅" }
+    { niveau: 1, variants: ["Aurore naissante", "Première lueur", "Aube timide"], emoji: "🌅" },
+    { niveau: 2, variants: ["Aube claire", "Lever doux", "Lumière matinale"], emoji: "🌅" },
+    { niveau: 3, variants: ["Premier rayon", "Aurore dorée", "Éclat matinal"], emoji: "🌅" },
+    { niveau: 4, variants: ["Éclat doré", "Aurore flamboyante", "Lever triomphant"], emoji: "🌅" },
+    { niveau: 5, variants: ["Soleil levé", "Aurore majestueuse", "Embrasement"], emoji: "🌅" }
   ],
   fatigue: [
-    { niveau: 1, label: "Nuages épars", emoji: "☁️" },
-    { niveau: 2, label: "Ciel partiellement couvert", emoji: "☁️" },
-    { niveau: 3, label: "Ciel très nuageux", emoji: "☁️" },
-    { niveau: 4, label: "Ciel couvert", emoji: "☁️" },
-    { niveau: 5, label: "Ciel plombé", emoji: "☁️" }
+    { niveau: 1, variants: ["Nuages épars", "Ciel voilé", "Brume légère"], emoji: "☁️" },
+    { niveau: 2, variants: ["Ciel partiellement couvert", "Nuages dispersés", "Voile nuageux"], emoji: "☁️" },
+    { niveau: 3, variants: ["Ciel très nuageux", "Couverture dense", "Nuages lourds"], emoji: "☁️" },
+    { niveau: 4, variants: ["Ciel couvert", "Plafond bas", "Masse nuageuse"], emoji: "☁️" },
+    { niveau: 5, variants: ["Ciel plombé", "Chape de plomb", "Obscurité nuageuse"], emoji: "☁️" }
   ],
   motivation: [
-    { niveau: 1, label: "Brise douce", emoji: "🍃" },
-    { niveau: 2, label: "Souffle d'élan", emoji: "🍃" },
-    { niveau: 3, label: "Vent de face", emoji: "🍃" },
-    { niveau: 4, label: "Rafales d'énergie", emoji: "🍃" },
-    { niveau: 5, label: "Tempête ascendante", emoji: "🍃" }
+    { niveau: 1, variants: ["Brise douce", "Souffle léger", "Vent porteur"], emoji: "🍃" },
+    { niveau: 2, variants: ["Souffle d'élan", "Vent encourageant", "Brise vivifiante"], emoji: "🍃" },
+    { niveau: 3, variants: ["Vent de face", "Courant porteur", "Souffle puissant"], emoji: "🍃" },
+    { niveau: 4, variants: ["Rafales d'énergie", "Vent dynamique", "Bourrasque énergique"], emoji: "🍃" },
+    { niveau: 5, variants: ["Tempête ascendante", "Cyclone d'énergie", "Ouragan motivant"], emoji: "🍃" }
   ]
 };
 
-// ===== MOTS-CLÉS COMMANDES =====
+// ===== MOTS-CLÉS COMMANDES - AMÉLIORATION V6.1 =====
+// FIX : Meilleure détection casse/pluriel + nouvelles commandes révélations
 const commandes = {
   // Navigation principale
   'journal': 'handleJournal',
   'habitudes': 'handleHabitudes', 
+  'révélations': 'handleRevelations',
+  'revelations': 'handleRevelations',
   'paramètres': 'handleParametres',
   'parametres': 'handleParametres',
   'aide': 'handleAide',
@@ -159,11 +176,23 @@ const commandes = {
   'journal joie': 'handleJournalJoie',
   'journal tristesse': 'handleJournalTristesse',
   
-  // Habitudes spécifique
+  // Habitudes spécifique - FIX V6.1
   'habitudes temps': 'handleHabitudesTemps',
+  'habitude temps': 'handleHabitudesTemps',
   'habitudes relations': 'handleHabitudesRelations',
+  'habitude relations': 'handleHabitudesRelations',
   'habitudes lieux': 'handleHabitudesLieux',
+  'habitude lieux': 'handleHabitudesLieux',
   'habitudes formules': 'handleHabitudesFormules',
+  'habitude formules': 'handleHabitudesFormules',
+  
+  // Révélations croisées - NOUVEAU V6.1
+  'révélations temps': 'handleRevelationsTemps',
+  'revelations temps': 'handleRevelationsTemps',
+  'révélations relations': 'handleRevelationsRelations',
+  'revelations relations': 'handleRevelationsRelations',
+  'révélations lieux': 'handleRevelationsLieux',
+  'revelations lieux': 'handleRevelationsLieux',
   
   // Paramètres
   'météo on': 'handleMeteoOn',
@@ -204,7 +233,7 @@ class InputDetector {
       return { type: 'greeting' };
     }
     
-    // Commandes (priorité haute pour navigation)
+    // Commandes (priorité haute pour navigation) - AMÉLIORATION V6.1
     for (const [cmd, handler] of Object.entries(commandes)) {
       if (msg === cmd || msg.startsWith(cmd + ' ')) {
         return { type: 'command', command: cmd, handler: handler };
@@ -250,7 +279,8 @@ class InputDetector {
   }
 }
 
-// ===== ANALYSEUR D'ÉMOTIONS =====
+// ===== ANALYSEUR D'ÉMOTIONS - AMÉLIORATION V6.1 =====
+// AMÉLIORATION : Prompt plus précis pour meilleur mapping famille d'émotion
 async function analyzeEmotionWithMistral(message) {
   console.log('🧠 Analyse émotionnelle Mistral...');
   
@@ -263,10 +293,16 @@ async function analyzeEmotionWithMistral(message) {
 
 Message: "${message}"
 
+IMPORTANT - Mapping des familles d'émotions :
+- "espoir", "enthousiasme", "détermination", "ambition" → famille "motivation"
+- "satisfaction", "contentement", "fierté", "plaisir" → famille "joie"
+- "attachement", "tendresse", "affection" → famille "amour"
+- "calme", "paix", "soulagement", "tranquillité" → famille "sérénité"
+
 Format JSON requis:
 {
   "emotion_principale": "nom de l'émotion principale",
-  "famille": "famille d'émotion (joie, tristesse, colère, peur, etc.)",
+  "famille": "famille d'émotion (joie, tristesse, colère, peur, surprise, dégoût, sérénité, amour, fatigue, motivation)",
   "intensite": nombre de 1 à 10,
   "nuance": "nuance spécifique de l'émotion",
   "cause": "résumé court de la cause/situation",
@@ -315,7 +351,202 @@ Sois précis et factuel.`
   }
 }
 
-// ===== GESTIONNAIRE DE COMMANDES =====
+// ===== GÉNÉRATEUR PHRASE HUMAINE - NOUVEAU V6.1 =====
+// OBJECTIF : Phrase empathique, naturelle, sans poésie (comme un ami/coach)
+async function generatePhraseHumaine(analysis, messageOriginal) {
+  console.log('💬 Génération phrase humaine...');
+  
+  try {
+    const emotionsText = `${analysis.emotion_principale}${analysis.nuance ? ' (' + analysis.nuance + ')' : ''} — ${analysis.intensite}/10`;
+    const emotionsSecondaires = analysis.emotions_secondaires?.slice(0, 2).map(emo => `${emo.emotion} — ${emo.intensite}/10`).join(', ');
+    
+    const response = await axios.post('https://api.mistral.ai/v1/chat/completions', {
+      model: 'mistral-tiny',
+      messages: [{
+        role: 'user',
+        content: `Tu es un assistant qui reformule de manière humaine, naturelle et chaleureuse un vécu émotionnel, sans poésie ni envolée lyrique.
+
+À partir du résumé suivant :
+${analysis.cause}
+
+Et des émotions détectées avec leur intensité (sur 10) :
+${emotionsText}${emotionsSecondaires ? ', ' + emotionsSecondaires : ''}
+
+Rédige une seule phrase qui :
+- Ressemble à ce que dirait un ami bienveillant ou un coach empathique
+- N'utilise pas de métaphores, pas de langage poétique
+- Reprend ou traduit l'idée des émotions de manière simple et sincère
+
+Exemples de ton attendu :
+"On sent que tu es vraiment fier de toi aujourd'hui, et tu peux l'être."
+"C'est super de voir que ce projet t'a fait du bien."
+"Tu sembles apaisé et content, ça fait plaisir à voir."
+
+→ Ne jamais ajouter d'emoji ni de poésie. Une seule phrase. Naturelle.`
+      }],
+      temperature: 0.4,
+      max_tokens: 100
+    }, {
+      headers: {
+        'Authorization': `Bearer ${mistralApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const phraseHumaine = response.data.choices[0].message.content.trim().replace(/["""]/g, '');
+    return phraseHumaine;
+    
+  } catch (error) {
+    console.error('❌ Erreur génération phrase humaine:', error.message);
+    
+    // Fallback simple
+    return "Tu partages quelque chose d'important, ça se sent.";
+  }
+}
+
+// ===== ANALYSEUR DE RÉVÉLATIONS CROISÉES - NOUVEAU V6.1 =====
+// RÉVOLUTIONNAIRE : Analyse patterns multi-dimensionnels émotion×temps×lieu×personne
+class RevelationsAnalyzer {
+  
+  // Analyse croisée complète
+  static analyzeRevelationsComplete(userId) {
+    const cartes = userData[userId]?.cartes || [];
+    if (cartes.length < 3) {
+      return "Pas encore assez de données pour des révélations croisées.\n\nMinimum 3 cartes nécessaires.\nContinue à partager tes émotions ! 🔍";
+    }
+
+    let revelations = [];
+    
+    // Pattern émotions × personnes
+    const emotionsPersonnes = this.analyzeEmotionsPersonnes(cartes);
+    if (emotionsPersonnes) revelations.push(emotionsPersonnes);
+    
+    // Pattern émotions × temps
+    const emotionsTemps = this.analyzeEmotionsTemps(cartes);
+    if (emotionsTemps) revelations.push(emotionsTemps);
+    
+    // Pattern émotions × activités
+    const emotionsActivites = this.analyzeEmotionsActivites(cartes);
+    if (emotionsActivites) revelations.push(emotionsActivites);
+    
+    if (revelations.length === 0) {
+      return "Pas encore de patterns révélateurs dans tes données.\n\nContinue à partager, les révélations arrivent ! 🔮";
+    }
+    
+    let message = `🔮 TES RÉVÉLATIONS CROISÉES\n\n`;
+    revelations.forEach((rev, index) => {
+      message += `💡 ${rev}\n\n`;
+    });
+    
+    message += `Plus de cartes = révélations plus précises ! 📊`;
+    return message;
+  }
+  
+  // Analyse émotions × personnes
+  static analyzeEmotionsPersonnes(cartes) {
+    const personnes = {};
+    
+    cartes.forEach(carte => {
+      const message = carte.message_original.toLowerCase();
+      const emotions = [carte.emotion_principale, ...(carte.emotions_secondaires?.map(e => e.emotion) || [])];
+      
+      // Détecter mentions de personnes
+      const mentionsPersonnes = message.match(/\b(mike|marie|jean|paul|sophie|emma|louis|claire|thomas|julie|alex|maman|papa|ami|amie|collègue|chef|patron)\b/g);
+      
+      if (mentionsPersonnes) {
+        mentionsPersonnes.forEach(personne => {
+          if (!personnes[personne]) personnes[personne] = { emotions: [], total: 0 };
+          personnes[personne].emotions.push(...emotions);
+          personnes[personne].total++;
+        });
+      }
+    });
+    
+    // Chercher patterns significatifs
+    for (const [personne, data] of Object.entries(personnes)) {
+      if (data.total >= 2) {
+        const emotionsPositives = data.emotions.filter(e => 
+          ['joie', 'bonheur', 'satisfaction', 'contentement', 'amour', 'tendresse'].some(pos => 
+            e.toLowerCase().includes(pos)
+          )
+        ).length;
+        
+        if (emotionsPositives >= data.total) {
+          return `Quand tu parles de ${personne.charAt(0).toUpperCase() + personne.slice(1)}, tes émotions sont systématiquement positives (${emotionsPositives}/${data.total} fois)`;
+        }
+      }
+    }
+    
+    return null;
+  }
+  
+  // Analyse émotions × temps
+  static analyzeEmotionsTemps(cartes) {
+    if (cartes.length < 3) return null;
+    
+    const heures = {};
+    
+    cartes.forEach(carte => {
+      const heure = new Date(carte.timestamp).getHours();
+      const tranche = heure < 12 ? 'matin' : (heure < 18 ? 'après-midi' : 'soir');
+      
+      if (!heures[tranche]) heures[tranche] = { emotions: [], intensites: [] };
+      heures[tranche].emotions.push(carte.emotion_principale);
+      heures[tranche].intensites.push(carte.intensite);
+    });
+    
+    // Chercher patterns temporels
+    for (const [tranche, data] of Object.entries(heures)) {
+      if (data.intensites.length >= 2) {
+        const moyenneIntensite = data.intensites.reduce((sum, i) => sum + i, 0) / data.intensites.length;
+        if (moyenneIntensite >= 7) {
+          return `Tes émotions sont particulièrement intenses le ${tranche} (moyenne ${moyenneIntensite.toFixed(1)}/10)`;
+        }
+      }
+    }
+    
+    return null;
+  }
+  
+  // Analyse émotions × activités  
+  static analyzeEmotionsActivites(cartes) {
+    const activites = {};
+    
+    cartes.forEach(carte => {
+      const message = carte.message_original.toLowerCase();
+      
+      // Détecter activités
+      const motsCles = {
+        'travail': ['travail', 'bureau', 'projet', 'pc', 'ordinateur', 'boulot'],
+        'sport': ['courir', 'course', 'sport', 'gym', 'vélo'],
+        'social': ['apéro', 'ami', 'amie', 'voir', 'rencontrer', 'sortir'],
+        'repos': ['détendre', 'relaxer', 'calme', 'repos', 'dormir']
+      };
+      
+      for (const [activite, mots] of Object.entries(motsCles)) {
+        if (mots.some(mot => message.includes(mot))) {
+          if (!activites[activite]) activites[activite] = { intensites: [], emotions: [] };
+          activites[activite].intensites.push(carte.intensite);
+          activites[activite].emotions.push(carte.emotion_principale);
+        }
+      }
+    });
+    
+    // Chercher corrélations activité-émotion
+    for (const [activite, data] of Object.entries(activites)) {
+      if (data.intensites.length >= 2) {
+        const moyenneIntensite = data.intensites.reduce((sum, i) => sum + i, 0) / data.intensites.length;
+        if (moyenneIntensite >= 7) {
+          return `L'activité "${activite}" génère chez toi des émotions intenses (moyenne ${moyenneIntensite.toFixed(1)}/10)`;
+        }
+      }
+    }
+    
+    return null;
+  }
+}
+
+// ===== GESTIONNAIRE DE COMMANDES - AMÉLIORATION V6.1 =====
 class CommandHandler {
   
   static handleJournal(userId) {
@@ -350,6 +581,117 @@ class CommandHandler {
     return `🧠 TES HABITUDES ÉMOTIONNELLES\n\nAnalyse en cours...\n\n🔍 Détails disponibles :\n• "habitudes temps" - Rythmes temporels\n• "habitudes relations" - Impact personnes\n• "habitudes lieux" - Influence environnement\n\nPlus de données = plus de révélations ! 💪`;
   }
 
+  // NOUVEAU V6.1 - Révélations croisées
+  static handleRevelations(userId) {
+    return RevelationsAnalyzer.analyzeRevelationsComplete(userId);
+  }
+
+  static handleRevelationsTemps(userId) {
+    const cartes = userData[userId]?.cartes || [];
+    if (cartes.length < 3) {
+      return "Pas encore assez de données pour analyser tes rythmes temporels.\n\nMinimum 3 cartes nécessaires. 🕐";
+    }
+    
+    return RevelationsAnalyzer.analyzeEmotionsTemps(cartes) || 
+           "Pas encore de pattern temporel clair dans tes données.\n\nContinue à partager ! ⏰";
+  }
+
+  static handleRevelationsRelations(userId) {
+    const cartes = userData[userId]?.cartes || [];
+    if (cartes.length < 2) {
+      return "Pas encore assez de données pour analyser l'impact des relations.\n\nMinimum 2 cartes nécessaires. 👥";
+    }
+    
+    return RevelationsAnalyzer.analyzeEmotionsPersonnes(cartes) || 
+           "Pas encore de pattern relationnel clair dans tes données.\n\nContinue à partager ! 💫";
+  }
+
+  static handleRevelationsLieux(userId) {
+    const cartes = userData[userId]?.cartes || [];
+    if (cartes.length < 2) {
+      return "Pas encore assez de données pour analyser l'influence des environnements.\n\nMinimum 2 cartes nécessaires. 📍";
+    }
+    
+    return RevelationsAnalyzer.analyzeEmotionsActivites(cartes) || 
+           "Pas encore de pattern environnemental clair dans tes données.\n\nContinue à partager ! 🌍";
+  }
+
+  // AMÉLIORATIONS V6.1 - Vraies analyses d'habitudes
+  static handleHabitudesTemps(userId) {
+    const cartes = userData[userId]?.cartes || [];
+    if (cartes.length < 3) {
+      return "Pas encore assez de données pour tes rythmes temporels.\n\nMinimum 3 cartes nécessaires. 🕐";
+    }
+
+    // Analyse simple par tranche horaire
+    const tranches = { matin: [], 'après-midi': [], soir: [] };
+    
+    cartes.forEach(carte => {
+      const heure = new Date(carte.timestamp).getHours();
+      const tranche = heure < 12 ? 'matin' : (heure < 18 ? 'après-midi' : 'soir');
+      tranches[tranche].push(carte.intensite);
+    });
+
+    let message = `🕐 TES RYTHMES TEMPORELS\n\n`;
+    
+    Object.entries(tranches).forEach(([tranche, intensites]) => {
+      if (intensites.length > 0) {
+        const moyenne = (intensites.reduce((sum, i) => sum + i, 0) / intensites.length).toFixed(1);
+        message += `${tranche.charAt(0).toUpperCase() + tranche.slice(1)} : ${moyenne}/10 (${intensites.length} messages)\n`;
+      }
+    });
+
+    return message + `\n💡 Plus de données = analyse plus précise !`;
+  }
+
+  static handleHabitudesRelations(userId) {
+    const cartes = userData[userId]?.cartes || [];
+    if (cartes.length < 2) {
+      return "Pas encore assez de données pour tes habitudes relationnelles.\n\nMinimum 2 cartes nécessaires. 👥";
+    }
+
+    let message = `👥 TES HABITUDES RELATIONNELLES\n\n`;
+    
+    const personnesMentionnees = new Set();
+    cartes.forEach(carte => {
+      const mentions = carte.message_original.toLowerCase().match(/\b(mike|marie|jean|paul|sophie|emma|ami|amie|collègue)\b/g);
+      if (mentions) mentions.forEach(p => personnesMentionnees.add(p));
+    });
+
+    if (personnesMentionnees.size > 0) {
+      message += `Personnes mentionnées : ${Array.from(personnesMentionnees).join(', ')}\n\n`;
+      message += `🔍 Pour des révélations plus poussées : "révélations relations"`;
+    } else {
+      message += `Aucune personne spécifique mentionnée dans tes messages.\n\nParle de tes relations pour voir les patterns ! 😊`;
+    }
+
+    return message;
+  }
+
+  static handleHabitudesLieux(userId) {
+    const cartes = userData[userId]?.cartes || [];
+    if (cartes.length < 2) {
+      return "Pas encore assez de données pour tes habitudes de lieux.\n\nMinimum 2 cartes nécessaires. 📍";
+    }
+
+    let message = `📍 TES HABITUDES DE LIEUX\n\n`;
+    
+    const lieuxMentionnes = new Set();
+    cartes.forEach(carte => {
+      const mentions = carte.message_original.toLowerCase().match(/\b(bureau|maison|pc|ordinateur|dehors|extérieur)\b/g);
+      if (mentions) mentions.forEach(l => lieuxMentionnes.add(l));
+    });
+
+    if (lieuxMentionnes.size > 0) {
+      message += `Environnements mentionnés : ${Array.from(lieuxMentionnes).join(', ')}\n\n`;
+      message += `🔍 Pour des révélations plus poussées : "révélations lieux"`;
+    } else {
+      message += `Aucun lieu spécifique mentionné dans tes messages.\n\nParle de tes environnements pour voir les patterns ! 🏠`;
+    }
+
+    return message;
+  }
+
   static handleParametres(userId) {
     const config = userData[userId]?.config || defaultUserConfig;
     const meteoStatus = config.meteo_active ? 'activée' : 'désactivée';
@@ -359,7 +701,7 @@ class CommandHandler {
   }
 
   static handleAide(userId) {
-    return `❓ GUIDE MOODMAP\n\n💬 UTILISATION :\nRaconte-moi simplement ce que tu ressens !\n\n📚 COMMANDES :\n• "journal" - Historique émotions\n• "habitudes" - Tes patterns\n• "paramètres" - Configuration\n\n🔧 UTILE :\n• "annule" - Efface dernière carte\n• "aide journal" - Aide spécifique\n\nJe suis là pour t'aider à mieux te comprendre ! 😊`;
+    return `❓ GUIDE MOODMAP V6.1\n\n💬 UTILISATION :\nRaconte-moi simplement ce que tu ressens !\n\n📚 COMMANDES :\n• "journal" - Historique émotions\n• "habitudes" - Tes patterns simples\n• "révélations" - Analyses croisées RÉVOLUTIONNAIRES\n• "paramètres" - Configuration\n\n🔧 UTILE :\n• "annule" - Efface dernière carte\n• "aide journal" - Aide spécifique\n\nJe suis là pour t'aider à mieux te comprendre ! 😊`;
   }
 
   static handleAnnule(userId) {
@@ -404,12 +746,11 @@ class CommandHandler {
   }
 }
 
-// ===== GÉNÉRATEUR DE CARTES ÉMOTIONNELLES =====
-// TEMPLATE MVP : Format validé, simple et efficace
-// STRUCTURE : Météo (optionnelle) + Émotions + Résumé + Action annulation
-// PRINCIPE : Pas de fioritures, focus sur l'information utile
-// MÉTÉO : Système figé familles × intensité (1-5) pour cohérence totale
-function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
+// ===== GÉNÉRATEUR DE CARTES ÉMOTIONNELLES - AMÉLIORATION V6.1 =====
+// TEMPLATE MVP : Format validé, simple et efficace + phrase humaine IA
+// STRUCTURE : Météo (optionnelle) + Émotions + Résumé + Phrase humaine + Action annulation
+// MÉTÉO : Système figé familles × intensité (1-5) avec variations pour éviter répétitions
+async function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
   const config = userData[userId]?.config || defaultUserConfig;
   const carteId = Date.now().toString();
   
@@ -420,18 +761,24 @@ function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
   
   if (config.meteo_active) {
     // Convertir intensité 1-10 vers niveau météo 1-5
-    // Intensité 1-2 → niveau 1, 3-4 → niveau 2, 5-6 → niveau 3, 7-8 → niveau 4, 9-10 → niveau 5
-    const intensiteAnalyse = analysis.intensite || 5; // Fallback niveau 3 (milieu)
+    const intensiteAnalyse = analysis.intensite || 5;
     const niveauMeteo = Math.min(5, Math.max(1, Math.ceil(intensiteAnalyse / 2)));
     
     // Récupérer la météo de la famille avec le bon niveau
     const familleMeteos = meteoEmotionnelle[analysis.famille] || meteoEmotionnelle['sérénité'];
-    const meteo = familleMeteos[niveauMeteo - 1]; // Index 0-4 pour niveau 1-5
+    const meteoData = familleMeteos[niveauMeteo - 1]; // Index 0-4 pour niveau 1-5
     
-    meteoEmoji = meteo.emoji;
-    meteoNom = meteo.label;
+    // NOUVEAU V6.1 : Rotation des variants pour éviter répétition
+    const userCartes = userData[userId]?.cartes || [];
+    const variantIndex = userCartes.length % meteoData.variants.length;
+    
+    meteoEmoji = meteoData.emoji;
+    meteoNom = meteoData.variants[variantIndex];
     meteoLine = `${meteoEmoji} ${meteoNom}\n\n`;
   }
+  
+  // NOUVEAU V6.1 : Générer phrase humaine empathique
+  const phraseHumaine = await generatePhraseHumaine(analysis, messageOriginal);
   
   // Construire la carte
   let carte = meteoLine;
@@ -451,7 +798,10 @@ function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
   carte += `\nRésumé :\n`;
   carte += analysis.cause || `Tu ressens ${analysis.emotion_principale} à un niveau ${analysis.intensite}/10.`;
   
-  carte += `\n\nPour annuler cette carte, réponds : annule (dans la minute).`;
+  // NOUVEAU V6.1 : Phrase humaine bonus
+  carte += `\n\n✨ ${phraseHumaine}`;
+  
+  carte += `\n\nPour annuler cette carte, réponds : annule`;
   
   // Stocker la carte avec les nouvelles données météo
   const carteData = {
@@ -466,7 +816,8 @@ function generateCarteEmotionnelle(analysis, messageOriginal, userId) {
     emotions_secondaires: analysis.emotions_secondaires,
     meteo_emoji: meteoEmoji,
     meteo_nom: meteoNom,
-    meteo_niveau: config.meteo_active ? Math.min(5, Math.max(1, Math.ceil((analysis.intensite || 5) / 2))) : null
+    meteo_niveau: config.meteo_active ? Math.min(5, Math.max(1, Math.ceil((analysis.intensite || 5) / 2))) : null,
+    phrase_humaine: phraseHumaine
   };
   
   if (!userData[userId]) {
@@ -573,7 +924,7 @@ app.post('/webhook', async (req, res) => {
       const analysis = await analyzeEmotionWithMistral(messageBody);
       console.log('📊 Analyse complète:', analysis);
       
-      responseMessage = generateCarteEmotionnelle(analysis, messageBody, fromNumber);
+      responseMessage = await generateCarteEmotionnelle(analysis, messageBody, fromNumber);
       
       userData[fromNumber].stats.total_messages += 1;
       console.log(`💾 Carte émotionnelle stockée pour ${fromNumber}`);
@@ -598,46 +949,70 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// ===== ROUTES SANTÉ =====
+// ===== ROUTES SANTÉ + EXPORT =====
 app.get('/', (req, res) => {
   const stats = {
-    version: "6.0 PRODUCT",
+    version: "6.1 RÉVOLUTIONNAIRE",
     uptime: process.uptime(),
     users: Object.keys(userData).length,
     total_cartes: Object.values(userData).reduce((sum, user) => sum + (user.cartes?.length || 0), 0),
     features: [
       "UX Clean & Product-Ready",
       "Gestion cas particuliers complète", 
-      "Template carte simplifié",
+      "Template carte avec phrase humaine IA",
       "Navigation intuitive",
-      "Paramètres utilisateur",
-      "Système d'aide intégré",
-      "Météo système figé (familles × intensité)"
+      "Révélations croisées multi-dimensionnelles",
+      "Météo système figé avec variations",
+      "Analyses d'habitudes réelles",
+      "Persistance automatique userData.json"
     ]
   };
   
   res.json({
-    status: "🚀 MoodMap V6.0 PRODUCT opérationnel !",
+    status: "🚀 MoodMap V6.1 RÉVOLUTIONNAIRE opérationnel !",
     stats: stats
   });
+});
+
+// Route d'export manuel pour backup
+app.get('/export', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', 'attachment; filename="moodmap-backup.json"');
+  res.json(userData);
 });
 
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.0'
+    version: '6.1',
+    persistence: 'active'
   });
 });
 
+// ===== SAUVEGARDE AUTOMATIQUE =====
+// Sauvegarde automatique toutes les minutes pour persistance
+setInterval(() => {
+  try {
+    fs.writeFileSync('userData.json', JSON.stringify(userData, null, 2));
+    const totalCartes = Object.values(userData).reduce((sum, user) => sum + (user.cartes?.length || 0), 0);
+    console.log(`💾 Données sauvegardées: ${Object.keys(userData).length} users, ${totalCartes} cartes`);
+  } catch (err) {
+    console.error('❌ Erreur sauvegarde userData.json:', err);
+  }
+}, 60000); // Sauvegarde toutes les 60 secondes
+
 // ===== DÉMARRAGE SERVEUR =====
 app.listen(port, () => {
-  console.log(`🚀 MoodMap WhatsApp Bot V6.0 PRODUCT démarré sur port ${port}`);
+  console.log(`🚀 MoodMap WhatsApp Bot V6.1 RÉVOLUTIONNAIRE démarré sur port ${port}`);
   console.log(`🎯 Focus UX : Clean, Sans Friction, Product-Ready`);
-  console.log(`🧠 IA Émotionnelle : Analyse Mistral intégrée`);
+  console.log(`🧠 IA Émotionnelle : Analyse Mistral + Phrase Humaine`);
   console.log(`🔧 Gestion cas particuliers : Complète`);
-  console.log(`📱 Template cartes : Simplifié et efficace`);
+  console.log(`📱 Template cartes : Simplifié + empathique`);
   console.log(`⚙️ Paramètres utilisateur : Configurables`);
-  console.log(`🌤️ Météo système figé : 10 familles × 5 intensités`);
-  console.log(`💪 Ready for real users !`);
+  console.log(`🌤️ Météo système figé : 10 familles × 5 intensités + variations`);
+  console.log(`🔮 Révélations croisées : Analyses multi-dimensionnelles`);
+  console.log(`💾 Persistance : userData.json automatique (60s)`);
+  console.log(`📥 Export manuel : ${process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + port}/export`);
+  console.log(`💪 Ready for revolutionary insights !`);
 });
