@@ -289,25 +289,29 @@ async function analyzeEmotionWithMistral(message) {
       model: 'mistral-tiny',
       messages: [{
         role: 'user',
-        content: `Analyse ce message émotionnel et réponds UNIQUEMENT avec un objet JSON:
+        content: `Analyse ce message émotionnel et réponds UNIQUEMENT avec un objet JSON en FRANÇAIS :
 
 Message: "${message}"
 
-IMPORTANT - Mapping des familles d'émotions :
+IMPORTANT - Toujours répondre en FRANÇAIS, jamais en anglais.
+
+Mapping des familles d'émotions :
 - "espoir", "enthousiasme", "détermination", "ambition" → famille "motivation"
 - "satisfaction", "contentement", "fierté", "plaisir" → famille "joie"
 - "attachement", "tendresse", "affection" → famille "amour"
 - "calme", "paix", "soulagement", "tranquillité" → famille "sérénité"
 
-Format JSON requis:
+Format JSON requis (en français uniquement):
 {
-  "emotion_principale": "nom de l'émotion principale",
+  "emotion_principale": "nom de l'émotion principale en français",
   "famille": "famille d'émotion (joie, tristesse, colère, peur, surprise, dégoût, sérénité, amour, fatigue, motivation)",
   "intensite": nombre de 1 à 10,
-  "nuance": "nuance spécifique de l'émotion",
-  "cause": "résumé court de la cause/situation",
-  "emotions_secondaires": [{"emotion": "nom", "intensite": nombre}]
+  "nuance": "nuance spécifique de l'émotion en français",
+  "cause": "résumé court de la cause/situation en français",
+  "emotions_secondaires": [{"emotion": "nom en français", "intensite": nombre}]
 }
+
+INTERDICTION ABSOLUE d'utiliser l'anglais. Réponds uniquement en français.
 
 Sois précis et factuel.`
       }],
@@ -361,34 +365,35 @@ async function generateResume(messageOriginal, analysis) {
       model: 'mistral-tiny',
       messages: [{
         role: 'user',
-        content: `Tu es un assistant qui doit résumer **en une seule phrase** ce que vit la personne, d'un point de vue neutre et factuel, sans redire le message initial.
+        content: `Tu es un assistant qui doit résumer **en une seule phrase** ce que vit la personne, d'un point de vue empathique mais professionnel, sans redire le message initial.
 
 Contraintes :
-- 1 seule phrase courte
-- Pas de points-virgules, pas de tournures pompeuses
+- 1 seule phrase courte en français
+- Ton empathique mais jamais familier (pas de "t'as", "tu vas kiffer")
 - Pas de "la personne évoque que…"
 - Pas de "semble", "il est possible que…"
-- Pas de paraphrase : extrais le sens, pas la forme
+- Pas de paraphrase : extrais le sens humain, pas juste les faits
+- Style naturel mais respectueux
 
-Tu dois répondre uniquement par le résumé, sans rien autour.
+Tu dois répondre uniquement par le résumé empathique, sans rien autour.
 
 Exemples :
 Message : "Je vais courir pour me détendre malgré mes douleurs"
-→ Résumé : Se détendre en allant courir malgré les douleurs physiques.
+→ Résumé : Besoin de se détendre par la course malgré des douleurs physiques.
 
 Message : "Je vais boire une bière avec Mike et ramener du foie gras"
-→ Résumé : Préparation d'un moment convivial avec un ami.
+→ Résumé : Anticipation d'un moment convivial et généreux avec un ami.
 
 Message : "Je suis resté assis toute la journée, j'en peux plus"
-→ Résumé : Fatigue liée à un excès de sédentarité.
+→ Résumé : Épuisement dû à une journée sédentaire trop longue.
 
 Message : "J'ai trop de choses à penser, ça m'angoisse"
-→ Résumé : Accumulation mentale source d'angoisse.
+→ Résumé : Surcharge mentale génératrice d'angoisse.
 
 Message à résumer : "${messageOriginal}"
 Émotion principale détectée : ${analysis.emotion_principale}
 
-Résumé :`
+Résumé empathique :`
       }],
       temperature: 0.2,
       max_tokens: 40
@@ -454,7 +459,7 @@ async function generatePhraseHumaine(analysis, messageOriginal, meteoEmoji) {
       model: 'mistral-tiny',
       messages: [{
         role: 'user',
-        content: `Tu es une IA empathique et concise, qui reformule de manière naturelle ce que la personne a vécu aujourd'hui.
+        content: `Tu es une IA empathique qui reformule de manière naturelle ce que la personne a vécu, en français uniquement.
 
 Voici le message original de la personne :
 "${messageOriginal}"
@@ -466,14 +471,19 @@ Voici le résumé factuel de ce vécu :
 ${analysis.cause}
 
 Ta tâche :
-→ Génère **une seule phrase** courte, fluide et naturelle qui reformule ce vécu avec empathie, sans exagération ni ton lyrique.
+→ Génère **une seule phrase** courte et naturelle qui reformule ce vécu avec empathie, sans exagération.
 → Tu peux reformuler librement, **sans répéter mot à mot** les éléments du message ou du résumé.
-→ N'utilise **aucune phrase toute faite**, ni formule de coach, ni tournure psychologique.
-→ Adopte un ton humain, sobre, chaleureux – comme un ami bienveillant.
+→ Évite les formules de coach, les tournures psychologiques ou les encouragements forcés.
+→ Adopte un ton ${tonalite}, naturel et respectueux - comme un ami bienveillant mais pas familier.
 → Ta phrase doit **refléter les émotions détectées**, sans forcer le trait.
-→ Adopte un registre ${tonalite}.
+→ INTERDICTION ABSOLUE d'utiliser l'anglais. Réponds uniquement en français.
 
-Rappel : pas de liste, pas de deuxième phrase, pas de commentaire sur l'IA ou le résumé. Juste **une phrase naturelle**, point.`
+Exemples de ton attendu :
+"Tu gardes ta motivation pour cette course, même si c'est inconfortable."
+"On sent que ce moment avec ton ami compte vraiment pour toi."
+"Cette journée t'a visiblement bien fatigué."
+
+Une seule phrase naturelle en français, sans répétition du message original.`
       }],
       temperature: 0.4,
       max_tokens: 40
@@ -1056,15 +1066,16 @@ app.post('/webhook', async (req, res) => {
 // ===== ROUTES SANTÉ + EXPORT =====
 app.get('/', (req, res) => {
   const stats = {
-    version: "6.1+ V7 STABLE",
+    version: "6.1+ V7 STABLE CORRIGÉE",
     uptime: process.uptime(),
     users: Object.keys(userData).length,
     total_cartes: Object.values(userData).reduce((sum, user) => sum + (user.cartes?.length || 0), 0),
     features: [
       "UX Clean & Product-Ready",
       "Gestion cas particuliers complète", 
-      "Template carte avec résumé clair + phrase humaine IA V7",
-      "Tonalité adaptée selon météo émotionnelle",
+      "Template carte avec résumé empathique + phrase humaine naturelle",
+      "Interdiction absolue de l'anglais dans tous les prompts",
+      "Tonalité respectueuse mais chaleureuse",
       "Navigation intuitive",
       "Révélations croisées multi-dimensionnelles",
       "Météo système figé avec variations",
@@ -1090,7 +1101,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.1+ V7',
+    version: '6.1+ V7 CORRIGÉE',
     persistence: 'active'
   });
 });
@@ -1109,16 +1120,17 @@ setInterval(() => {
 
 // ===== DÉMARRAGE SERVEUR =====
 app.listen(port, () => {
-  console.log(`🚀 MoodMap WhatsApp Bot V6.1+ V7 STABLE démarré sur port ${port}`);
+  console.log(`🚀 MoodMap WhatsApp Bot V6.1+ V7 STABLE CORRIGÉE démarré sur port ${port}`);
   console.log(`🎯 Focus UX : Clean, Sans Friction, Product-Ready`);
-  console.log(`🧠 IA Émotionnelle : Analyse Mistral + Phrase Humaine V7 optimisée`);
-  console.log(`💬 Prompt V7 : Ton sobre, empathique, sans répétition`);
+  console.log(`🧠 IA Émotionnelle : Analyse Mistral + Résumé empathique + Phrase naturelle`);
+  console.log(`🇫🇷 Prompts : 100% français, interdiction absolue de l'anglais`);
+  console.log(`💬 Ton : Respectueux mais chaleureux, ni familier ni coach de vie`);
   console.log(`🔧 Gestion cas particuliers : Complète`);
-  console.log(`📱 Template cartes : Résumé clair + empathique + concis`);
+  console.log(`📱 Template cartes : Résumé empathique + phrase naturelle`);
   console.log(`⚙️ Paramètres utilisateur : Configurables`);
   console.log(`🌤️ Météo système figé : 10 familles × 5 intensités + variations`);
   console.log(`🔮 Révélations croisées : Analyses multi-dimensionnelles`);
   console.log(`💾 Persistance : userData.json automatique (60s)`);
   console.log(`📥 Export manuel : ${process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + port}/export`);
-  console.log(`💪 Ready for revolutionary insights with V7 stable empathy !`);
+  console.log(`💪 Ready for natural French empathy !`);
 });
