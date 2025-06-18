@@ -414,16 +414,20 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             width: 540px;
             height: 680px;
+            margin: 0;
+            padding: 0;
             overflow: hidden;
         }
         
         .card {
-            width: 100%;
-            height: 100%;
+            width: 540px;
+            height: 680px;
             background: ${gradient};
             border-radius: 30px;
             padding: 50px;
+            margin: 0;
             position: relative;
+            box-sizing: border-box;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
         }
         
@@ -557,10 +561,14 @@ async function generateImageFromHTML(html) {
       width: 540,
       height: 680,
       device_scale_factor: 2, // Haute définition
-      format: 'png'
+      format: 'png',
+      viewport_width: 540,
+      viewport_height: 680,
+      ms_delay: 0,
+      selector: '.card' // Capture seulement la carte, pas toute la page
     }, {
       auth: {
-        username: process.env.HCTI_USER_ID || 'demo', // Utilise 'demo' pour les tests
+        username: process.env.HCTI_USER_ID || 'demo',
         password: process.env.HCTI_API_KEY || 'demo'
       },
       timeout: 30000
@@ -672,7 +680,7 @@ app.post('/webhook', async (req, res) => {
     if (messageClean === 'hello' || messageClean === 'salut') {
       console.log('🔧 AVANT ENVOI hello');
       await client.messages.create({
-        body: '🌈 Bienvenue sur MoodMap Option 42 ! Raconte-moi ce que tu ressens ou ce qui t\'a traversé aujourd\'hui 😊',
+        body: '🌈 Bienvenue sur MoodMap !\n\nPartage-moi tes émotions du jour et je crée des cartes visuelles pour mieux te connaître et révéler tes habitudes émotionnelles insoupçonnées ! 😊\n\nTu vas être surpris... 😉✨',
         from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
