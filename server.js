@@ -430,7 +430,7 @@ app.post('/webhook', async (req, res) => {
     if (message.toLowerCase() === 'hello' || message.toLowerCase() === 'salut') {
       await client.messages.create({
         body: '🌈 Bienvenue sur MoodMap Option 42 ! Raconte-moi ce que tu ressens ou ce qui t\'a traversé aujourd\'hui 😊',
-        from: process.env.TWILIO_PHONE_NUMBER,
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
       return res.sendStatus(200);
@@ -449,7 +449,7 @@ Raconte-moi simplement ce que tu ressens !
 
 🎯 OBJECTIF :
 Découvrir tes patterns émotionnels !`,
-        from: process.env.TWILIO_PHONE_NUMBER,
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
       return res.sendStatus(200);
@@ -460,7 +460,7 @@ Découvrir tes patterns émotionnels !`,
       if (userCards.length === 0) {
         await client.messages.create({
           body: '📖 Ton journal est vide ! Commence par partager tes émotions.',
-          from: process.env.TWILIO_PHONE_NUMBER,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
       } else {
@@ -481,7 +481,7 @@ Découvrir tes patterns émotionnels !`,
         
         await client.messages.create({
           body: journalText,
-          from: process.env.TWILIO_PHONE_NUMBER,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
       }
@@ -494,13 +494,13 @@ Découvrir tes patterns émotionnels !`,
         userData[userId].cartes.pop();
         await client.messages.create({
           body: '✅ Dernière carte supprimée !',
-          from: process.env.TWILIO_PHONE_NUMBER,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
       } else {
         await client.messages.create({
           body: '❌ Aucune carte à supprimer !',
-          from: process.env.TWILIO_PHONE_NUMBER,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
       }
@@ -517,7 +517,7 @@ Découvrir tes patterns émotionnels !`,
     // Envoi réponse
     await client.messages.create({
       body: carteData.card,
-      from: process.env.TWILIO_PHONE_NUMBER,
+      from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
       to: from
     });
     
