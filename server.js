@@ -222,33 +222,38 @@ async function detectPatternWithAI(userCards) {
   const prompt = `Langue : FRANÇAIS UNIQUEMENT.
 Format : EXACTEMENT deux lignes.
 
-Pattern: [observation factuelle, max 12 mots]
-Insight: [suggestion constructive, max 12 mots]
+Pattern: [observation factuelle croisant émotions + contexte + timing, max 15 mots]
+Insight: [conseil actionnable et personnalisé, max 15 mots]
 
-Données (derniers messages):
-${recentCards.map(c => 
-  `"${c.message}" → ${c.emotions.map(e => `${e.emotion}(${e.intensite}/10)`).join(', ')}`
-).join('\n')}
+Données récentes avec contexte temporal :
+${recentCards.map((c, i) => {
+  const date = new Date(c.timestamp);
+  const dayName = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][date.getDay()];
+  const hour = date.getHours();
+  const period = hour < 12 ? 'matin' : hour < 18 ? 'après-midi' : 'soir';
+  return `${dayName} ${period} (${hour}h): "${c.message}" → ${c.emotions.map(e => `${e.emotion}(${e.intensite}/10)`).join(', ')}`;
+}).join('\n')}
 
-Exemples de réponses VALIDES :
-Pattern: Tu es joyeux quand tu vois des amis
-Insight: Les relations sociales te font du bien
+MISSION : Trouve des corrélations subtiles entre émotions, contexte, timing, mots-clés.
 
-Pattern: Fatigue récurrente les soirs de travail
-Insight: Prendre des pauses pourrait t'aider
+Exemples de patterns EXCELLENTS (ne pas recopier) :
+Pattern: Motivation plus forte le matin quand tu parles de projets
+Insight: Planifie tes tâches créatives avant 10h pour plus d'efficacité
 
-Pattern: Motivation forte pour le sport malgré obstacles
-Insight: Cette détermination est une vraie force
+Pattern: Émotions intenses les jours commençant par M
+Insight: Prépare ces journées avec des activités apaisantes
 
-Si tu n'as RIEN de pertinent à dire, réponds :
-Pattern: Aucun motif notable pour le moment
-Insight: Continue à partager tes émotions
+Pattern: Mots positifs doublent quand tu mentionnes des personnes  
+Insight: Cultive davantage tes relations sociales pour ton bien-être
 
 INTERDICTIONS :
-- Pas d'anglais
-- Pas de "semble", "peut-être", "probablement"
-- Pas de psychologie de comptoir
-- Sois factuel et constructif`;
+- Pas de patterns évidents ("tu aimes X car tu dis aimer X")
+- Pas d'anglais, pas de "semble", "peut-être", "probablement"
+- Sois fin, perspicace, utile
+
+Si RIEN de subtil à dire, réponds :
+Pattern: Données insuffisantes pour pattern fin
+Insight: Continue à partager pour plus de révélations`;
 
   try {
     const response = await callMistral(prompt);
@@ -426,8 +431,11 @@ app.post('/webhook', async (req, res) => {
   console.log(`📱 Message reçu de ${userId}: "${message}"`);
   
   try {
-    // Gestion des commandes spéciales
-    if (message.toLowerCase() === 'hello' || message.toLowerCase() === 'salut') {
+    // Détection des commandes en PREMIER (avant analyse émotionnelle)
+    const messageClean = message.toLowerCase().trim();
+    
+    // Commandes exactes
+    if (messageClean === 'hello' || messageClean === 'salut') {
       await client.messages.create({
         body: '🌈 Bienvenue sur MoodMap Option 42 ! Raconte-moi ce que tu ressens ou ce qui t\'a traversé aujourd\'hui 😊',
         from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
@@ -436,7 +444,23 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
     
-    if (message.toLowerCase() === 'aide' || message.toLowerCase() === 'help') {
+    // Commandes avec tolérance aux typos
+    if (messageClean.includes('habitude') || messageClean === 'habits') {
+      await client.messages.create({
+        body: `🧠 TES HABITUDES ÉMOTIONNELLES
+
+Analyse en cours...
+
+🔍 Détails disponibles :
+• "journal" - Historique complet
+• Plus de données = plus de révélations ! 💪`,
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+        to: from
+      });
+      return res.sendStatus(200);
+    }
+    
+    if (messageClean === 'aide' || messageClean === 'help') {
       await client.messages.create({
         body: `❓ GUIDE MOODMAP OPTION 42
 
@@ -445,6 +469,7 @@ Raconte-moi simplement ce que tu ressens !
 
 📚 COMMANDES :
 • "journal" - Historique émotions
+• "habitudes" - Tes patterns
 • "annule" - Efface dernière carte
 
 🎯 OBJECTIF :
@@ -455,7 +480,7 @@ Découvrir tes patterns émotionnels !`,
       return res.sendStatus(200);
     }
     
-    if (message.toLowerCase() === 'journal') {
+    if (messageClean === 'journal') {
       const userCards = userData[userId]?.cartes || [];
       if (userCards.length === 0) {
         await client.messages.create({
@@ -488,7 +513,7 @@ Découvrir tes patterns émotionnels !`,
       return res.sendStatus(200);
     }
     
-    if (message.toLowerCase() === 'annule') {
+    if (messageClean === 'annule') {
       const userCards = userData[userId]?.cartes || [];
       if (userCards.length > 0) {
         userData[userId].cartes.pop();
@@ -529,7 +554,7 @@ Découvrir tes patterns émotionnels !`,
     try {
       await client.messages.create({
         body: '❌ Désolé, je rencontre une difficulté technique. Peux-tu réessayer ?',
-        from: process.env.TWILIO_PHONE_NUMBER,
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
     } catch (sendError) {
