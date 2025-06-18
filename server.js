@@ -125,7 +125,7 @@ async function analyzeEmotions(message) {
 
 Message: "${message}"
 
-IMPORTANT : Réponds UNIQUEMENT avec du JSON pur, sans balises markdown, sans ```json, sans texte autour.
+IMPORTANT : Réponds UNIQUEMENT avec du JSON pur, sans balises markdown, sans triple backticks, sans texte autour.
 
 Format JSON exact attendu :
 {
