@@ -191,9 +191,9 @@ Règles strictes :
 
 // Validation stricte des patterns IA
 function validatePattern(pattern, insight) {
-  // Vérification longueur
+  // Vérification longueur - ASSOUPLIE
   if (!pattern || !insight || pattern.length < 8 || insight.length < 8) return false;
-  if (pattern.length > 80 || insight.length > 80) return false;
+  if (pattern.length > 120 || insight.length > 120) return false;
   
   // Mots interdits (IA qui sait pas quoi dire) - VERSION ASSOUPLIE
   const forbiddenWords = ['aucun', 'pas de'];
@@ -338,12 +338,44 @@ function generateMeteo(emotions) {
     return { emoji: "🌫️", texte: "Brouillard épais", famille: "peur" };
   }
   
-  // PRIORITÉ 2 : Émotion dominante normale
+  // PRIORITÉ 2 : Émotion dominante avec mapping intelligent
   const emotionDominante = emotions.reduce((prev, current) => 
     current.intensite > prev.intensite ? current : prev
   );
   
-  const familleMeteo = meteoSimple[emotionDominante.emotion] || meteoSimple.sérénité;
+  // Mapping intelligent des émotions vers familles météo
+  let familleMeteo = meteoSimple[emotionDominante.emotion];
+  
+  // Si émotion inconnue, mapping intelligent
+  if (!familleMeteo) {
+    const emotionLower = emotionDominante.emotion.toLowerCase();
+    
+    // Émotions négatives → colère
+    if (emotionLower.includes('frustration') || emotionLower.includes('frustré') || 
+        emotionLower.includes('agacement') || emotionLower.includes('irritation') ||
+        emotionLower.includes('énervement')) {
+      familleMeteo = meteoSimple.colère;
+    }
+    // Émotions tristes → tristesse  
+    else if (emotionLower.includes('nostalgie') || emotionLower.includes('mélancolie') ||
+             emotionLower.includes('déception') || emotionLower.includes('déçu')) {
+      familleMeteo = meteoSimple.tristesse;
+    }
+    // Émotions anxieuses → peur
+    else if (emotionLower.includes('anxiété') || emotionLower.includes('anxieux') ||
+             emotionLower.includes('inquiétude') || emotionLower.includes('inquiet')) {
+      familleMeteo = meteoSimple.peur;
+    }
+    // Émotions positives → joie
+    else if (emotionLower.includes('gratitude') || emotionLower.includes('reconnaissance') ||
+             emotionLower.includes('satisfaction') || emotionLower.includes('fierté')) {
+      familleMeteo = meteoSimple.joie;
+    }
+    // Fallback sécurisé
+    else {
+      familleMeteo = meteoSimple.sérénité;
+    }
+  }
   
   let niveau = 1;
   if (emotionDominante.intensite >= 7) niveau = 3;
