@@ -298,20 +298,35 @@ Insight: Continue à partager pour plus de révélations`;
   }
 }
 
-// Génération météo selon émotion dominante
+// ✅ CORRECTION 1 : Génération météo avec PRIORITÉ stress/fatigue ≥7
 function generateMeteo(emotions) {
   if (!emotions || emotions.length === 0) {
     return { emoji: "☁️", texte: "Temps neutre" };
   }
   
-  // Émotion la plus intense
+  // PRIORITÉ 1 : Stress/fatigue intense (≥7) force la météo
+  const stressIntense = emotions.find(e => e.emotion === 'stress' && e.intensite >= 7);
+  if (stressIntense) {
+    return { emoji: "⛈️", texte: "Tempête" };
+  }
+  
+  const fatigueIntense = emotions.find(e => e.emotion === 'fatigue' && e.intensite >= 7);
+  if (fatigueIntense) {
+    return { emoji: "🌫️", texte: "Brouillard dense" };
+  }
+  
+  const anxieteIntense = emotions.find(e => e.emotion === 'anxiété' && e.intensite >= 7);
+  if (anxieteIntense) {
+    return { emoji: "🌫️", texte: "Brouillard épais" };
+  }
+  
+  // PRIORITÉ 2 : Émotion dominante normale
   const emotionDominante = emotions.reduce((prev, current) => 
     current.intensite > prev.intensite ? current : prev
   );
   
   const familleMeteo = meteoSimple[emotionDominante.emotion] || meteoSimple.sérénité;
   
-  // Niveau selon intensité (1-3 selon 1-10)
   let niveau = 1;
   if (emotionDominante.intensite >= 7) niveau = 3;
   else if (emotionDominante.intensite >= 4) niveau = 2;
@@ -391,7 +406,7 @@ function getEmotionEmoji(emotion) {
   return emojis[emotion] || "😐";
 }
 
-// Stockage carte
+// ✅ CORRECTION 4 : Stockage carte avec patterns complets
 function stockerCarte(userId, carteData, analysis, messageOriginal) {
   if (!userData[userId]) {
     userData[userId] = { cartes: [], preferences: {} };
@@ -404,9 +419,15 @@ function stockerCarte(userId, carteData, analysis, messageOriginal) {
     emotions: analysis.emotions,
     meteoEmoji: carteData.meteoEmoji,
     meteoTexte: carteData.meteoTexte,
-    hasPattern: carteData.hasPattern,
-    patternData: carteData.patternData
+    hasPattern: carteData.hasPattern
   };
+  
+  // CORRECTION : Bien stocker le pattern complet
+  if (carteData.hasPattern && carteData.patternData) {
+    carte.pattern = carteData.patternData.pattern;
+    carte.insight = carteData.patternData.insight;
+    carte.patternData = carteData.patternData;
+  }
   
   userData[userId].cartes.push(carte);
   
@@ -434,33 +455,94 @@ app.post('/webhook', async (req, res) => {
     // Détection des commandes en PREMIER (avant analyse émotionnelle)
     const messageClean = message.toLowerCase().trim();
     
+    // ✅ CORRECTION 3 : Logs détaillés pour debug double "OK"
     // Commandes exactes
     if (messageClean === 'hello' || messageClean === 'salut') {
+      console.log('🔧 AVANT ENVOI hello');
       await client.messages.create({
         body: '🌈 Bienvenue sur MoodMap Option 42 ! Raconte-moi ce que tu ressens ou ce qui t\'a traversé aujourd\'hui 😊',
         from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
-      return res.sendStatus(200);
+      console.log('✅ APRÈS ENVOI hello');
+      res.writeHead(200, {'Content-Type': 'text/xml'});
+      res.end('<Response></Response>');
+      return;
     }
     
-    // Commandes avec tolérance aux typos
+    // ✅ CORRECTION 2 : Commande habitudes intelligente
     if (messageClean.includes('habitude') || messageClean === 'habits') {
+      const userCards = userData[userId]?.cartes || [];
+      
+      if (userCards.length < 3) {
+        console.log('🔧 AVANT ENVOI habitudes (pas assez données)');
+        await client.messages.create({
+          body: `🧠 TES HABITUDES ÉMOTIONNELLES
+
+Pas encore assez de données pour analyser tes habitudes.
+
+🔍 Détails disponibles :
+• "journal" - Historique complet  
+• Continue à partager tes émotions ! 💪`,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          to: from
+        });
+        console.log('✅ APRÈS ENVOI habitudes (pas assez données)');
+        res.writeHead(200, {'Content-Type': 'text/xml'});
+        res.end('<Response></Response>');
+        return;
+      }
+      
+      // Chercher le dernier pattern détecté
+      const cardsWithPattern = userCards.filter(card => card.hasPattern && card.patternData);
+      
+      if (cardsWithPattern.length === 0) {
+        console.log('🔧 AVANT ENVOI habitudes (aucun pattern)');
+        await client.messages.create({
+          body: `🧠 TES HABITUDES ÉMOTIONNELLES
+
+Aucune habitude claire détectée pour le moment.
+
+🔍 Détails disponibles :
+• "journal" - Historique complet  
+• Continue à partager tes émotions ! 💪`,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          to: from
+        });
+        console.log('✅ APRÈS ENVOI habitudes (aucun pattern)');
+        res.writeHead(200, {'Content-Type': 'text/xml'});
+        res.end('<Response></Response>');
+        return;
+      }
+      
+      // Prendre le dernier pattern
+      const lastPattern = cardsWithPattern[cardsWithPattern.length - 1];
+      const daysSince = Math.floor((Date.now() - new Date(lastPattern.timestamp)) / (1000 * 60 * 60 * 24));
+      const timeSince = daysSince === 0 ? "aujourd'hui" : `il y a ${daysSince} jour${daysSince > 1 ? 's' : ''}`;
+      
+      console.log('🔧 AVANT ENVOI habitudes (avec pattern)');
       await client.messages.create({
         body: `🧠 TES HABITUDES ÉMOTIONNELLES
 
-Analyse en cours...
+💡 ${lastPattern.patternData.pattern}
+✨ ${lastPattern.patternData.insight}
 
-🔍 Détails disponibles :
+📅 Détecté ${timeSince}
+
+🔍 Plus de détails :
 • "journal" - Historique complet
-• Plus de données = plus de révélations ! 💪`,
+• Nouvelles données = nouvelles révélations ! 💪`,
         from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
-      return res.sendStatus(200);
+      console.log('✅ APRÈS ENVOI habitudes (avec pattern)');
+      res.writeHead(200, {'Content-Type': 'text/xml'});
+      res.end('<Response></Response>');
+      return;
     }
     
     if (messageClean === 'aide' || messageClean === 'help') {
+      console.log('🔧 AVANT ENVOI aide');
       await client.messages.create({
         body: `❓ GUIDE MOODMAP OPTION 42
 
@@ -477,17 +559,22 @@ Découvrir tes patterns émotionnels !`,
         from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
-      return res.sendStatus(200);
+      console.log('✅ APRÈS ENVOI aide');
+      res.writeHead(200, {'Content-Type': 'text/xml'});
+      res.end('<Response></Response>');
+      return;
     }
     
     if (messageClean === 'journal') {
       const userCards = userData[userId]?.cartes || [];
       if (userCards.length === 0) {
+        console.log('🔧 AVANT ENVOI journal (vide)');
         await client.messages.create({
           body: '📖 Ton journal est vide ! Commence par partager tes émotions.',
           from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
+        console.log('✅ APRÈS ENVOI journal (vide)');
       } else {
         const lastCards = userCards.slice(-5);
         let journalText = '📖 TES DERNIÈRES ÉMOTIONS :\n\n';
@@ -504,32 +591,42 @@ Découvrir tes patterns émotionnels !`,
           journalText += '\n';
         });
         
+        console.log('🔧 AVANT ENVOI journal (avec cartes)');
         await client.messages.create({
           body: journalText,
           from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
+        console.log('✅ APRÈS ENVOI journal (avec cartes)');
       }
-      return res.sendStatus(200);
+      res.writeHead(200, {'Content-Type': 'text/xml'});
+      res.end('<Response></Response>');
+      return;
     }
     
     if (messageClean === 'annule') {
       const userCards = userData[userId]?.cartes || [];
       if (userCards.length > 0) {
         userData[userId].cartes.pop();
+        console.log('🔧 AVANT ENVOI annule (supprimé)');
         await client.messages.create({
           body: '✅ Dernière carte supprimée !',
           from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
+        console.log('✅ APRÈS ENVOI annule (supprimé)');
       } else {
+        console.log('🔧 AVANT ENVOI annule (rien à supprimer)');
         await client.messages.create({
           body: '❌ Aucune carte à supprimer !',
           from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
           to: from
         });
+        console.log('✅ APRÈS ENVOI annule (rien à supprimer)');
       }
-      return res.sendStatus(200);
+      res.writeHead(200, {'Content-Type': 'text/xml'});
+      res.end('<Response></Response>');
+      return;
     }
     
     // Analyse émotionnelle principale
@@ -540,28 +637,34 @@ Découvrir tes patterns émotionnels !`,
     stockerCarte(userId, carteData, analysis, message);
     
     // Envoi réponse
+    console.log('🔧 AVANT ENVOI carte Option 42');
     await client.messages.create({
       body: carteData.card,
       from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
       to: from
     });
+    console.log('✅ APRÈS ENVOI carte Option 42');
     
-    res.sendStatus(200);
+    res.writeHead(200, {'Content-Type': 'text/xml'});
+    res.end('<Response></Response>');
     
   } catch (error) {
     console.error('❌ Erreur traitement message:', error);
     
     try {
+      console.log('🚨 AVANT ENVOI erreur');
       await client.messages.create({
         body: '❌ Désolé, je rencontre une difficulté technique. Peux-tu réessayer ?',
         from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: from
       });
+      console.log('🚨 APRÈS ENVOI erreur');
     } catch (sendError) {
       console.error('❌ Erreur envoi message d\'erreur:', sendError);
     }
     
-    res.sendStatus(500);
+    res.writeHead(500, {'Content-Type': 'text/xml'});
+    res.end('<Response></Response>');
   }
 });
 
@@ -591,5 +694,10 @@ app.listen(port, () => {
   console.log('⚡ 2 appels Mistral par carte seulement');
   console.log('🧠 Patterns intelligents automatiques');
   console.log('🛡️ Fallback robuste intégré');
+  console.log('✅ CORRECTIONS APPLIQUÉES :');
+  console.log('   - Météo priorité stress/fatigue ≥7');
+  console.log('   - Habitudes intelligentes avec patterns');
+  console.log('   - Logs détaillés debug double OK');
+  console.log('   - Stockage patterns complet');
   console.log('💪 Ready for revolution !');
 });
