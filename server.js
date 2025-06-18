@@ -195,8 +195,8 @@ function validatePattern(pattern, insight) {
   if (!pattern || !insight || pattern.length < 8 || insight.length < 8) return false;
   if (pattern.length > 80 || insight.length > 80) return false;
   
-  // Mots interdits (IA qui sait pas quoi dire)
-  const forbiddenWords = ['semble', 'peut-être', 'probablement', 'il se pourrait', 'pourrait', 'aucun'];
+  // Mots interdits (IA qui sait pas quoi dire) - VERSION ASSOUPLIE
+  const forbiddenWords = ['aucun', 'pas de'];
   const patternLower = pattern.toLowerCase();
   const insightLower = insight.toLowerCase();
   
