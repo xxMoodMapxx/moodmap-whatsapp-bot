@@ -11,12 +11,13 @@ const app = express();
 const port = process.env.PORT || 10000;
 
 // Validation des variables d'environnement
-if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.MISTRAL_API_KEY) {
+if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.MISTRAL_API_KEY || !process.env.TWILIO_PHONE_NUMBER) {
   console.error('❌ ERREUR : Variables d\'environnement manquantes !');
   console.log('🔍 Variables requises :');
   console.log(`TWILIO_ACCOUNT_SID: ${process.env.TWILIO_ACCOUNT_SID ? '✅ Définie' : '❌ MANQUANTE'}`);
   console.log(`TWILIO_AUTH_TOKEN: ${process.env.TWILIO_AUTH_TOKEN ? '✅ Définie' : '❌ MANQUANTE'}`);
   console.log(`MISTRAL_API_KEY: ${process.env.MISTRAL_API_KEY ? '✅ Définie' : '❌ MANQUANTE'}`);
+  console.log(`TWILIO_PHONE_NUMBER: ${process.env.TWILIO_PHONE_NUMBER ? '✅ Définie' : '❌ MANQUANTE'}`);
   process.exit(1);
 }
 
@@ -124,7 +125,9 @@ async function analyzeEmotions(message) {
 
 Message: "${message}"
 
-Réponds EXACTEMENT dans ce format JSON, rien d'autre :
+IMPORTANT : Réponds UNIQUEMENT avec du JSON pur, sans balises markdown, sans ```json, sans texte autour.
+
+Format JSON exact attendu :
 {
   "emotions": [
     {"emotion": "joie", "intensite": 7},
@@ -137,11 +140,19 @@ Règles strictes :
 - Intensité entre 1 et 10
 - Noms d'émotions simples : joie, tristesse, colère, peur, surprise, motivation, fatigue, sérénité, gratitude, etc.
 - INTERDICTION ABSOLUE d'utiliser l'anglais
-- Format JSON valide obligatoire`;
+- JSON pur seulement, pas de markdown
+- Pas de texte explicatif avant ou après le JSON`;
 
   try {
     const response = await callMistral(prompt);
-    const analysis = JSON.parse(response);
+    
+    // Nettoyage réponse Mistral (enlever markdown si présent)
+    let cleanResponse = response.trim();
+    if (cleanResponse.includes('```json')) {
+      cleanResponse = cleanResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    }
+    
+    const analysis = JSON.parse(cleanResponse);
     
     // Validation
     if (!analysis.emotions || !Array.isArray(analysis.emotions)) {
@@ -198,11 +209,15 @@ function validatePattern(pattern, insight) {
 
 // Détection de patterns avec IA + validation stricte
 async function detectPatternWithAI(userCards) {
-  if (!userCards || userCards.length < 3) return null;
+  if (!userCards || userCards.length < 3) {
+    console.log(`ℹ️ Pas assez de cartes pour pattern (${userCards?.length || 0}/3 minimum)`);
+    return null;
+  }
   
   console.log('🔍 Détection pattern IA...');
   
   const recentCards = userCards.slice(-7); // 7 dernières cartes
+  console.log(`📊 Analyse de ${recentCards.length} cartes récentes`);
   
   const prompt = `Langue : FRANÇAIS UNIQUEMENT.
 Format : EXACTEMENT deux lignes.
@@ -237,7 +252,7 @@ INTERDICTIONS :
 
   try {
     const response = await callMistral(prompt);
-    console.log('🔍 Réponse IA pattern:', response);
+    console.log('🔍 Réponse IA pattern brute:', response);
     
     // Extraction avec regex
     const match = response.match(/Pattern:\s*(.+)\nInsight:\s*(.+)/i);
@@ -249,6 +264,9 @@ INTERDICTIONS :
     const [_, pattern, insight] = match;
     const cleanPattern = pattern.trim();
     const cleanInsight = insight.trim();
+    
+    console.log(`🔍 Pattern extrait: "${cleanPattern}"`);
+    console.log(`🔍 Insight extrait: "${cleanInsight}"`);
     
     // Validation stricte
     if (!validatePattern(cleanPattern, cleanInsight)) {
@@ -263,7 +281,7 @@ INTERDICTIONS :
       return null;
     }
     
-    console.log('✅ Pattern validé:', cleanPattern);
+    console.log('✅ Pattern validé et accepté');
     return {
       pattern: cleanPattern,
       insight: cleanInsight
@@ -303,10 +321,14 @@ function generateMeteo(emotions) {
 // Génération carte Option 42
 async function generateOption42Card(analysis, messageOriginal, userId) {
   const meteo = generateMeteo(analysis.emotions);
+  console.log(`🌤️ Météo générée: ${meteo.emoji} ${meteo.texte}`);
   
   // Détection pattern IA
   const userCards = userData[userId]?.cartes || [];
+  console.log(`📊 Utilisateur ${userId} a ${userCards.length} cartes`);
+  
   const pattern = await detectPatternWithAI(userCards);
+  console.log(`🔍 Pattern détecté: ${pattern ? 'OUI' : 'NON'}`);
   
   // Template Option 42 clean
   let card = `${meteo.emoji} ${meteo.texte}\n\n`;
@@ -321,6 +343,9 @@ async function generateOption42Card(analysis, messageOriginal, userId) {
   if (pattern) {
     card += `\n💡 ${pattern.pattern}`;
     card += `\n✨ ${pattern.insight}`;
+    console.log(`✅ Pattern ajouté à la carte`);
+  } else {
+    console.log(`ℹ️ Aucun pattern ajouté à la carte`);
   }
   
   card += `\n\nPour annuler : annule`;
