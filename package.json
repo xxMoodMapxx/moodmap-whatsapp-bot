@@ -1,7 +1,7 @@
 {
   "name": "moodmap-whatsapp-bot",
   "version": "6.0.0",
-  "description": "MoodMap WhatsApp Bot V6.0 RÉVOLUTION VISUELLE - Cartes émotionnelles pastels générées par IA avec patterns multi-dimensionnels",
+  "description": "MoodMap WhatsApp Bot V6.0 RÉVOLUTION VISUELLE - IA Pure + Service Externe Images + Patterns Intelligents",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,8 +12,7 @@
     "twilio": "^4.19.0",
     "axios": "^1.6.0",
     "body-parser": "^1.20.2",
-    "dotenv": "^16.3.1",
-    "canvas": "^2.11.2"
+    "dotenv": "^16.3.1"
   },
   "engines": {
     "node": ">=18"
@@ -28,9 +27,9 @@
     "multi-dimensional-analysis",
     "mistral-ai",
     "visual-cards",
-    "pastel-design",
-    "image-generation",
-    "révolution-visuelle"
+    "service-externe",
+    "révolution-visuelle",
+    "ultra-costaud"
   ],
   "author": "xxMoodMapxx",
   "license": "MIT"
