@@ -1,13 +1,11 @@
 // MoodMap WhatsApp Bot - OPTION 42 🚀
-// IA Pure + Cartes Visuelles + Template Clean
+// IA Pure + Service Externe Images + Template Clean
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const axios = require('axios');
 const fs = require('fs');
-const { createCanvas, loadImage, registerFont } = require('canvas');
-const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -26,12 +24,6 @@ if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !proces
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use('/images', express.static('temp_images')); // Servir les images temporaires
-
-// Créer dossier pour images temporaires
-if (!fs.existsSync('temp_images')) {
-  fs.mkdirSync('temp_images');
-}
 
 // Chargement des données utilisateur
 let userData = {};
@@ -105,14 +97,14 @@ const meteoSimple = {
 
 // Gradients couleurs pour les cartes visuelles
 const meteoGradients = {
-  joie: { start: '#FEF3C7', middle: '#FCD34D', end: '#F59E0B' }, // Jaune chaud
-  tristesse: { start: '#DBEAFE', middle: '#93C5FD', end: '#60A5FA' }, // Bleu doux  
-  colère: { start: '#FCE7F3', middle: '#F9A8D4', end: '#EC4899' }, // Rose-rouge
-  peur: { start: '#F3F4F6', middle: '#D1D5DB', end: '#9CA3AF' }, // Gris 
-  surprise: { start: '#EDE9FE', middle: '#C4B5FD', end: '#8B5CF6' }, // Violet
-  motivation: { start: '#D1FAE5', middle: '#6EE7B7', end: '#10B981' }, // Vert énergique
-  fatigue: { start: '#E5E7EB', middle: '#D1D5DB', end: '#6B7280' }, // Gris terne
-  sérénité: { start: '#ECFDF5', middle: '#A7F3D0', end: '#6EE7B7' } // Vert zen
+  joie: 'linear-gradient(135deg, #FEF3C7 0%, #FCD34D 50%, #F59E0B 100%)',
+  tristesse: 'linear-gradient(135deg, #DBEAFE 0%, #93C5FD 50%, #60A5FA 100%)', 
+  colère: 'linear-gradient(135deg, #FCE7F3 0%, #F9A8D4 50%, #EC4899 100%)',
+  peur: 'linear-gradient(135deg, #F3F4F6 0%, #D1D5DB 50%, #9CA3AF 100%)',
+  surprise: 'linear-gradient(135deg, #EDE9FE 0%, #C4B5FD 50%, #8B5CF6 100%)',
+  motivation: 'linear-gradient(135deg, #D1FAE5 0%, #6EE7B7 50%, #10B981 100%)',
+  fatigue: 'linear-gradient(135deg, #E5E7EB 0%, #D1D5DB 50%, #6B7280 100%)',
+  sérénité: 'linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 50%, #6EE7B7 100%)'
 };
 
 // Fonction d'appel Mistral
@@ -387,155 +379,9 @@ function getEmotionEmoji(emotion) {
   return emojis[emotion] || "😐";
 }
 
-// Fonction utilitaire pour créer un gradient
-function createGradient(ctx, width, height, colors) {
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, colors.start);
-  gradient.addColorStop(0.5, colors.middle);
-  gradient.addColorStop(1, colors.end);
-  return gradient;
-}
-
-// Fonction utilitaire pour wrapper le texte
-function wrapText(ctx, text, maxWidth) {
-  const words = text.split(' ');
-  const lines = [];
-  let currentLine = words[0];
-
-  for (let i = 1; i < words.length; i++) {
-    const word = words[i];
-    const width = ctx.measureText(currentLine + ' ' + word).width;
-    if (width < maxWidth) {
-      currentLine += ' ' + word;
-    } else {
-      lines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  lines.push(currentLine);
-  return lines;
-}
-
-// FONCTION PRINCIPALE : Génération carte visuelle
-async function generateMoodImage(analysis, message, meteo, pattern, timestamp) {
-  const width = 540;
-  const height = 680;
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-
-  // Fond gradient selon la météo
-  const gradientColors = meteoGradients[meteo.famille] || meteoGradients.sérénité;
-  const bgGradient = createGradient(ctx, width, height, gradientColors);
-  
-  ctx.fillStyle = bgGradient;
-  ctx.fillRect(0, 0, width, height);
-
-  // Coins arrondis pour la carte
-  ctx.beginPath();
-  ctx.roundRect(20, 20, width - 40, height - 40, 30);
-  ctx.clip();
-  ctx.fillRect(0, 0, width, height);
-
-  // Reset clip pour les éléments suivants
-  ctx.restore();
-  ctx.save();
-
-  // Header météo
-  ctx.fillStyle = '#374151';
-  ctx.font = 'bold 24px Arial, sans-serif';
-  ctx.fillText(`${meteo.emoji} ${meteo.texte}`, 50, 80);
-
-  // Citation utilisateur (encadré blanc)
-  const quoteX = 50;
-  const quoteY = 120;
-  const quoteWidth = width - 100;
-  const quoteHeight = 80;
-
-  // Fond blanc translucide pour la citation
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.beginPath();
-  ctx.roundRect(quoteX, quoteY, quoteWidth, quoteHeight, 15);
-  ctx.fill();
-
-  // Texte de la citation
-  ctx.fillStyle = '#374151';
-  ctx.font = 'italic 16px Arial, sans-serif';
-  const quotedMessage = `"${message}"`;
-  const quoteLines = wrapText(ctx, quotedMessage, quoteWidth - 40);
-  
-  quoteLines.forEach((line, index) => {
-    ctx.fillText(line, quoteX + 20, quoteY + 30 + (index * 20));
-  });
-
-  // Émotions (encadré blanc)
-  const emotionsX = 50;
-  const emotionsY = 230;
-  const emotionsWidth = width - 100;
-  const emotionsHeight = analysis.emotions.length * 35 + 20;
-
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-  ctx.beginPath();
-  ctx.roundRect(emotionsX, emotionsY, emotionsWidth, emotionsHeight, 15);
-  ctx.fill();
-
-  // Texte des émotions
-  ctx.fillStyle = '#374151';
-  ctx.font = '18px Arial, sans-serif';
-  
-  analysis.emotions.forEach((emotion, index) => {
-    const emoji = getEmotionEmoji(emotion.emotion);
-    const emotionText = emotion.emotion.charAt(0).toUpperCase() + emotion.emotion.slice(1);
-    const text = `${emoji} ${emotionText} : ${emotion.intensite}/10`;
-    ctx.fillText(text, emotionsX + 20, emotionsY + 35 + (index * 35));
-  });
-
-  // Pattern & Insight (si présent)
-  if (pattern) {
-    const patternY = emotionsY + emotionsHeight + 20;
-    const patternHeight = 120;
-
-    // Fond blanc translucide pour pattern/insight
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.beginPath();
-    ctx.roundRect(50, patternY, width - 100, patternHeight, 15);
-    ctx.fill();
-
-    // Badge "TENDANCE"
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.beginPath();
-    ctx.roundRect(70, patternY + 15, 120, 25, 12);
-    ctx.fill();
-
-    ctx.fillStyle = '#374151';
-    ctx.font = 'bold 12px Arial, sans-serif';
-    ctx.fillText('📊 TENDANCE', 80, patternY + 32);
-
-    // Texte pattern
-    ctx.font = '14px Arial, sans-serif';
-    const patternLines = wrapText(ctx, pattern.pattern, width - 140);
-    patternLines.forEach((line, index) => {
-      ctx.fillText(line, 70, patternY + 55 + (index * 16));
-    });
-
-    // Badge "PISTE"
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.beginPath();
-    ctx.roundRect(70, patternY + 75, 100, 25, 12);
-    ctx.fill();
-
-    ctx.fillStyle = '#374151';
-    ctx.font = 'bold 12px Arial, sans-serif';
-    ctx.fillText('🧭 PISTE', 80, patternY + 92);
-
-    // Texte insight
-    ctx.font = '14px Arial, sans-serif';
-    const insightLines = wrapText(ctx, pattern.insight, width - 140);
-    insightLines.forEach((line, index) => {
-      ctx.fillText(line, 70, patternY + 115 + (index * 16));
-    });
-  }
-
-  // Date en bas
+// FONCTION PRINCIPALE : Génération HTML pour la carte visuelle
+function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
+  // Date formatée en français
   const date = new Date(timestamp);
   const options = { 
     weekday: 'long', 
@@ -546,23 +392,196 @@ async function generateMoodImage(analysis, message, meteo, pattern, timestamp) {
   const formattedDate = date.toLocaleDateString('fr-FR', options);
   const finalDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
 
-  ctx.fillStyle = '#6B7280';
-  ctx.font = '14px Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(finalDate, width / 2, height - 40);
+  // Gradient selon la météo
+  const gradient = meteoGradients[meteo.famille] || meteoGradients.sérénité;
 
-  // Sauvegarder l'image
-  const filename = `mood_card_${Date.now()}.png`;
-  const filepath = path.join('temp_images', filename);
-  const buffer = canvas.toBuffer('image/png');
-  fs.writeFileSync(filepath, buffer);
+  // Construction du HTML
+  const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodMap Carte</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            width: 540px;
+            height: 680px;
+            overflow: hidden;
+        }
+        
+        .card {
+            width: 100%;
+            height: 100%;
+            background: ${gradient};
+            border-radius: 30px;
+            padding: 50px;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .weather-header {
+            color: #374151;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
+        
+        .quote-box {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            font-style: italic;
+            color: #374151;
+            font-size: 18px;
+            line-height: 1.4;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .emotions-box {
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: #374151;
+        }
+        
+        .emotion-item {
+            font-size: 20px;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        
+        .emotion-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .pattern-box {
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: #374151;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+        
+        .pattern-text {
+            font-size: 16px;
+            line-height: 1.4;
+            margin-bottom: 15px;
+        }
+        
+        .insight-text {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        
+        .date-footer {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #6B7280;
+            font-size: 16px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="weather-header">
+            ${meteo.emoji} ${meteo.texte}
+        </div>
+        
+        <div class="quote-box">
+            "${message}"
+        </div>
+        
+        <div class="emotions-box">
+            ${analysis.emotions.map(emotion => {
+              const emoji = getEmotionEmoji(emotion.emotion);
+              const emotionText = emotion.emotion.charAt(0).toUpperCase() + emotion.emotion.slice(1);
+              return `<div class="emotion-item">${emoji} ${emotionText} : ${emotion.intensite}/10</div>`;
+            }).join('')}
+        </div>
+        
+        ${pattern ? `
+        <div class="pattern-box">
+            <div class="badge">📊 TENDANCE</div>
+            <div class="pattern-text">${pattern.pattern}</div>
+            
+            <div class="badge">🧭 PISTE</div>
+            <div class="insight-text">${pattern.insight}</div>
+        </div>
+        ` : ''}
+        
+        <div class="date-footer">
+            ${finalDate}
+        </div>
+    </div>
+</body>
+</html>`;
 
-  console.log(`🎨 Carte générée: ${filename}`);
-  return {
-    filepath,
-    filename,
-    url: `${process.env.BASE_URL || 'https://your-app.onrender.com'}/images/${filename}`
-  };
+  return html;
+}
+
+// Génération image via service externe
+async function generateImageFromHTML(html) {
+  try {
+    console.log('🎨 Génération image via service externe...');
+    
+    // Configuration pour htmlcsstoimage.com
+    const response = await axios.post('https://hcti.io/v1/image', {
+      html: html,
+      css: '', // CSS inclus dans le HTML
+      width: 540,
+      height: 680,
+      device_scale_factor: 2, // Haute définition
+      format: 'png'
+    }, {
+      auth: {
+        username: process.env.HCTI_USER_ID || 'demo', // Utilise 'demo' pour les tests
+        password: process.env.HCTI_API_KEY || 'demo'
+      },
+      timeout: 30000
+    });
+
+    console.log('✅ Image générée avec succès');
+    return {
+      url: response.data.url,
+      success: true
+    };
+    
+  } catch (error) {
+    console.error('❌ Erreur génération image:', error.response?.data || error.message);
+    
+    // Fallback: on renvoie un texte si l'image échoue
+    return {
+      url: null,
+      success: false,
+      fallback: true
+    };
+  }
 }
 
 // Génération carte Option 42 avec image
@@ -577,8 +596,8 @@ async function generateOption42Card(analysis, messageOriginal, userId) {
   const pattern = await detectPatternWithAI(userCards);
   console.log(`🔍 Pattern détecté: ${pattern ? 'OUI' : 'NON'}`);
   
-  // Générer l'image
-  const imageData = await generateMoodImage(
+  // Générer HTML
+  const html = generateMoodHTML(
     analysis, 
     messageOriginal, 
     meteo, 
@@ -586,12 +605,16 @@ async function generateOption42Card(analysis, messageOriginal, userId) {
     new Date().toISOString()
   );
   
+  // Générer image
+  const imageResult = await generateImageFromHTML(html);
+  
   return {
-    imageData,
+    imageResult,
     meteoEmoji: meteo.emoji,
     meteoTexte: meteo.texte,
     hasPattern: !!pattern,
-    patternData: pattern
+    patternData: pattern,
+    html: html // Pour debug si besoin
   };
 }
 
@@ -609,7 +632,7 @@ function stockerCarte(userId, carteData, analysis, messageOriginal) {
     meteoEmoji: carteData.meteoEmoji,
     meteoTexte: carteData.meteoTexte,
     hasPattern: carteData.hasPattern,
-    imageFilename: carteData.imageData.filename
+    imageUrl: carteData.imageResult.url
   };
   
   // Bien stocker le pattern complet
@@ -628,29 +651,6 @@ function stockerCarte(userId, carteData, analysis, messageOriginal) {
   
   console.log(`💾 Carte émotionnelle stockée pour ${userId}`);
 }
-
-// Nettoyage périodique des images temporaires (garde seulement les 50 dernières)
-setInterval(() => {
-  try {
-    const files = fs.readdirSync('temp_images')
-      .filter(file => file.endsWith('.png'))
-      .map(file => ({
-        name: file,
-        time: fs.statSync(path.join('temp_images', file)).mtime.getTime()
-      }))
-      .sort((a, b) => b.time - a.time);
-
-    if (files.length > 50) {
-      const filesToDelete = files.slice(50);
-      filesToDelete.forEach(file => {
-        fs.unlinkSync(path.join('temp_images', file.name));
-      });
-      console.log(`🧹 Nettoyage: ${filesToDelete.length} images supprimées`);
-    }
-  } catch (err) {
-    console.error('❌ Erreur nettoyage images:', err);
-  }
-}, 60000 * 10); // Toutes les 10 minutes
 
 // Routes principales
 app.post('/webhook', async (req, res) => {
@@ -677,12 +677,132 @@ app.post('/webhook', async (req, res) => {
         to: from
       });
       console.log('✅ APRÈS ENVOI hello');
-      res.writeHead(200, {'Content-Type': 'text/xml'});
-      res.end('<Response></Response>');
-      return;
+      return res.sendStatus(200);
     }
     
-    // [Autres commandes restent identiques...]
+    // Commandes avec tolérance aux typos
+    if (messageClean.includes('habitude') || messageClean === 'habits') {
+      const userCards = userData[userId]?.cartes || [];
+      
+      if (userCards.length === 0) {
+        await client.messages.create({
+          body: `🧠 TES HABITUDES ÉMOTIONNELLES
+
+Aucune habitude claire détectée pour le moment.
+
+🔍 Détails disponibles :
+• "journal" - Historique complet  
+• Continue à partager tes émotions ! 💪`,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          to: from
+        });
+      } else {
+        // Chercher le dernier pattern détecté
+        const carteAvecPattern = [...userCards].reverse().find(c => c.hasPattern);
+        
+        if (carteAvecPattern) {
+          await client.messages.create({
+            body: `🧠 TES HABITUDES ÉMOTIONNELLES
+
+💡 ${carteAvecPattern.pattern}
+✨ ${carteAvecPattern.insight}
+
+📅 Détecté aujourd'hui
+
+🔍 Plus de détails :
+• "journal" - Historique complet
+• Nouvelles données = nouvelles révélations ! 💪`,
+            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+            to: from
+          });
+        } else {
+          await client.messages.create({
+            body: `🧠 TES HABITUDES ÉMOTIONNELLES
+
+Aucune habitude claire détectée pour le moment.
+
+🔍 Détails disponibles :
+• "journal" - Historique complet  
+• Continue à partager tes émotions ! 💪`,
+            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+            to: from
+          });
+        }
+      }
+      return res.sendStatus(200);
+    }
+    
+    if (messageClean === 'aide' || messageClean === 'help') {
+      await client.messages.create({
+        body: `❓ GUIDE MOODMAP OPTION 42
+
+💬 UTILISATION :
+Raconte-moi simplement ce que tu ressens !
+
+📚 COMMANDES :
+• "journal" - Historique émotions
+• "habitudes" - Tes patterns
+• "annule" - Efface dernière carte
+
+🎯 OBJECTIF :
+Découvrir tes patterns émotionnels !`,
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+        to: from
+      });
+      return res.sendStatus(200);
+    }
+    
+    if (messageClean === 'journal') {
+      const userCards = userData[userId]?.cartes || [];
+      if (userCards.length === 0) {
+        await client.messages.create({
+          body: '📖 Ton journal est vide ! Commence par partager tes émotions.',
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          to: from
+        });
+      } else {
+        const lastCards = userCards.slice(-5);
+        let journalText = '📖 TES DERNIÈRES ÉMOTIONS :\n\n';
+        lastCards.forEach((carte, index) => {
+          const date = new Date(carte.timestamp).toLocaleDateString('fr-FR');
+          journalText += `${index + 1}. ${date}\n`;
+          journalText += `${carte.meteoEmoji} ${carte.meteoTexte}\n`;
+          carte.emotions.forEach(e => {
+            journalText += `${getEmotionEmoji(e.emotion)} ${e.emotion}: ${e.intensite}/10\n`;
+          });
+          if (carte.hasPattern) {
+            journalText += `💡 ${carte.pattern}\n`;
+          }
+          journalText += '\n';
+        });
+        
+        await client.messages.create({
+          body: journalText,
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          to: from
+        });
+      }
+      return res.sendStatus(200);
+    }
+    
+    if (messageClean === 'annule') {
+      const userCards = userData[userId]?.cartes || [];
+      if (userCards.length > 0) {
+        userData[userId].cartes.pop();
+        await client.messages.create({
+          body: '✅ Dernière carte supprimée !',
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          to: from
+        });
+      } else {
+        await client.messages.create({
+          body: '❌ Aucune carte à supprimer !',
+          from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          to: from
+        });
+      }
+      return res.sendStatus(200);
+    }
     
     // Analyse émotionnelle principale
     const analysis = await analyzeEmotions(message);
@@ -691,17 +811,43 @@ app.post('/webhook', async (req, res) => {
     // Stockage
     stockerCarte(userId, carteData, analysis, message);
     
-    // Envoi IMAGE au lieu de texte
-    console.log('🔧 AVANT ENVOI carte visuelle');
-    await client.messages.create({
-      mediaUrl: [carteData.imageData.url],
-      from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-      to: from
-    });
-    console.log('✅ APRÈS ENVOI carte visuelle');
+    // Envoi IMAGE ou fallback texte
+    console.log('🔧 AVANT ENVOI carte');
     
-    res.writeHead(200, {'Content-Type': 'text/xml'});
-    res.end('<Response></Response>');
+    if (carteData.imageResult.success && carteData.imageResult.url) {
+      // Envoi image
+      await client.messages.create({
+        mediaUrl: [carteData.imageResult.url],
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+        to: from
+      });
+      console.log('✅ APRÈS ENVOI carte visuelle');
+    } else {
+      // Fallback texte si image échoue
+      let fallbackCard = `${carteData.meteoEmoji} ${carteData.meteoTexte}\n\n`;
+      
+      analysis.emotions.forEach(emotion => {
+        const emotionEmoji = getEmotionEmoji(emotion.emotion);
+        const emotionText = emotion.emotion.charAt(0).toUpperCase() + emotion.emotion.slice(1);
+        fallbackCard += `${emotionEmoji} ${emotionText} : ${emotion.intensite}/10\n`;
+      });
+      
+      if (carteData.hasPattern) {
+        fallbackCard += `\n📊 ${carteData.patternData.pattern}`;
+        fallbackCard += `\n🧭 ${carteData.patternData.insight}`;
+      }
+      
+      fallbackCard += '\n\nPour annuler : annule';
+      
+      await client.messages.create({
+        body: fallbackCard,
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+        to: from
+      });
+      console.log('✅ APRÈS ENVOI fallback texte');
+    }
+    
+    res.sendStatus(200);
     
   } catch (error) {
     console.error('❌ Erreur traitement message:', error);
@@ -718,8 +864,7 @@ app.post('/webhook', async (req, res) => {
       console.error('❌ Erreur envoi message d\'erreur:', sendError);
     }
     
-    res.writeHead(500, {'Content-Type': 'text/xml'});
-    res.end('<Response></Response>');
+    res.sendStatus(500);
   }
 });
 
@@ -735,7 +880,7 @@ app.get('/health', (req, res) => {
   
   res.json({
     status: 'OK',
-    version: 'Option 42 V2.0 - Cartes Visuelles',
+    version: 'Option 42 V2.0 - Service Externe Images',
     users: userCount,
     cards: totalCards,
     timestamp: new Date().toISOString()
@@ -745,11 +890,11 @@ app.get('/health', (req, res) => {
 // Démarrage serveur
 app.listen(port, () => {
   console.log('🚀 MoodMap WhatsApp Bot - OPTION 42 V2.0 démarré sur port', port);
-  console.log('🎨 Génération cartes visuelles activée');
+  console.log('🎨 Génération cartes visuelles via service externe');
   console.log('🎯 IA Pure avec validation stricte');
-  console.log('⚡ 2 appels Mistral par carte seulement');
+  console.log('⚡ 2 appels Mistral + 1 génération image par carte');
   console.log('🧠 Patterns intelligents automatiques');
-  console.log('🛡️ Fallback robuste intégré');
+  console.log('🛡️ Fallback robuste intégré (texte si image échoue)');
   console.log('🌈 Cartes pastels modernes pour WhatsApp');
-  console.log('💪 Ready for visual revolution !');
+  console.log('💪 Ready for visual revolution (service externe) !');
 });
