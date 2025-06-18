@@ -204,8 +204,13 @@ function validatePattern(pattern, insight) {
     return false;
   }
   
-  // Validation français plus robuste
-  const frenchIndicators = ['tu', 'te', 'ton', 'tes', 'quand', 'avec', 'pour', 'dans', 'sur', 'est', 'sont'];
+  // Validation français plus robuste - ÉLARGIE
+  const frenchIndicators = [
+    'tu', 'te', 'ton', 'tes', 'ta', 'quand', 'avec', 'pour', 'dans', 'sur', 'est', 'sont',
+    'que', 'des', 'les', 'une', 'un', 'le', 'la', 'du', 'de', 'et', 'ou', 'se', 'si',
+    'être', 'avoir', 'faire', 'aller', 'voir', 'savoir', 'pouvoir', 'vouloir',
+    'sembler', 'pourrait', 'serait', 'devrait', 'il', 'elle', 'nous', 'vous', 'ils', 'elles'
+  ];
   const hasFrenchPattern = frenchIndicators.some(word => patternLower.includes(word));
   const hasFrenchInsight = frenchIndicators.some(word => insightLower.includes(word));
   
