@@ -1,11 +1,11 @@
-// MoodMap WhatsApp Bot - OPTION 42 🚀
-// IA Pure + Service Externe Images + Template Clean
+// MoodMap WhatsApp Bot - OPTION 42 MongoDB 🚀
+// IA Pure + Service Externe Images + Template Clean + MongoDB Atlas
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const axios = require('axios');
-const fs = require('fs');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -18,6 +18,7 @@ if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !proces
   console.log(`TWILIO_AUTH_TOKEN: ${process.env.TWILIO_AUTH_TOKEN ? '✅ Définie' : '❌ MANQUANTE'}`);
   console.log(`MISTRAL_API_KEY: ${process.env.MISTRAL_API_KEY ? '✅ Définie' : '❌ MANQUANTE'}`);
   console.log(`TWILIO_PHONE_NUMBER: ${process.env.TWILIO_PHONE_NUMBER ? '✅ Définie' : '❌ MANQUANTE'}`);
+  console.log(`MONGODB_URI: ${process.env.MONGODB_URI ? '✅ Définie' : '❌ MANQUANTE'}`);
   process.exit(1);
 }
 
@@ -25,31 +26,99 @@ const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TO
 
 app.use(bodyParser.urlencoded({ extended: false }));
 
-// Chargement des données utilisateur
-let userData = {};
-if (fs.existsSync('userData.json')) {
-  try {
-    userData = JSON.parse(fs.readFileSync('userData.json'));
-    const userCount = Object.keys(userData).length;
-    const totalCards = Object.values(userData).reduce((sum, user) => sum + (user.cartes?.length || 0), 0);
-    console.log('✅ Données utilisateur restaurées depuis userData.json');
-    console.log(`📊 ${userCount} utilisateurs rechargés, ${totalCards} cartes totales`);
-  } catch (err) {
-    console.error('⚠️ Erreur de lecture du fichier userData.json :', err);
-  }
+// ===== MONGODB CONFIGURATION =====
+let db = null;
+let usersCollection = null;
+
+async function connectToMongoDB() {
+    try {
+        const mongoClient = new MongoClient(process.env.MONGODB_URI);
+        await mongoClient.connect();
+        db = mongoClient.db('moodmap');
+        usersCollection = db.collection('users');
+        console.log('✅ Connecté à MongoDB Atlas');
+        
+        // Migration automatique des données JSON existantes
+        await migrateDataIfNeeded();
+    } catch (error) {
+        console.error('❌ Erreur connexion MongoDB:', error);
+        process.exit(1);
+    }
 }
 
-// Sauvegarde automatique toutes les minutes
-setInterval(() => {
-  try {
-    fs.writeFileSync('userData.json', JSON.stringify(userData, null, 2));
-    const userCount = Object.keys(userData).length;
-    const totalCards = Object.values(userData).reduce((sum, user) => sum + (user.cartes?.length || 0), 0);
-    console.log(`💾 Données sauvegardées: ${userCount} users, ${totalCards} cartes`);
-  } catch (err) {
-    console.error('❌ Erreur sauvegarde:', err);
-  }
-}, 60000);
+// Migration des données userData.json vers MongoDB
+async function migrateDataIfNeeded() {
+    try {
+        const fs = require('fs');
+        if (fs.existsSync('userData.json')) {
+            console.log('📦 Migration des données JSON vers MongoDB...');
+            const jsonData = JSON.parse(fs.readFileSync('userData.json', 'utf8'));
+            
+            for (const [userId, userData] of Object.entries(jsonData)) {
+                await usersCollection.replaceOne(
+                    { userId: userId },
+                    { 
+                        userId: userId,
+                        cartes: userData.cartes || [],
+                        preferences: userData.preferences || {},
+                        lastUpdated: new Date()
+                    },
+                    { upsert: true }
+                );
+            }
+            
+            // Backup du fichier JSON puis suppression
+            fs.renameSync('userData.json', `userData_backup_${Date.now()}.json`);
+            console.log('✅ Migration terminée ! Données sauvées dans MongoDB');
+        }
+    } catch (error) {
+        console.error('⚠️ Erreur migration:', error);
+    }
+}
+
+// ===== NOUVELLES FONCTIONS MONGODB =====
+
+async function getUserData(userId) {
+    try {
+        const user = await usersCollection.findOne({ userId: userId });
+        return user ? { 
+            cartes: user.cartes || [], 
+            preferences: user.preferences || {} 
+        } : { 
+            cartes: [], 
+            preferences: {} 
+        };
+    } catch (error) {
+        console.error('❌ Erreur lecture utilisateur:', error);
+        return { cartes: [], preferences: {} };
+    }
+}
+
+async function saveUserData(userId, userData) {
+    try {
+        await usersCollection.replaceOne(
+            { userId: userId },
+            { 
+                userId: userId,
+                cartes: userData.cartes || [],
+                preferences: userData.preferences || {},
+                lastUpdated: new Date()
+            },
+            { upsert: true }
+        );
+        
+        // Statistiques
+        const totalUsers = await usersCollection.countDocuments();
+        const totalCards = await usersCollection.aggregate([
+            { $project: { cardCount: { $size: "$cartes" } } },
+            { $group: { _id: null, total: { $sum: "$cardCount" } } }
+        ]).toArray();
+        
+        console.log(`💾 Données sauvegardées: ${totalUsers} users, ${totalCards[0]?.total || 0} cartes`);
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde:', error);
+    }
+}
 
 // Système météo simplifié - 3 niveaux seulement
 const meteoSimple = {
@@ -635,7 +704,8 @@ async function generateOption42Card(analysis, messageOriginal, userId) {
   console.log(`🌤️ Météo générée: ${meteo.emoji} ${meteo.texte}`);
   
   // Détection pattern IA
-  const userCards = userData[userId]?.cartes || [];
+  const userData = await getUserData(userId);
+  const userCards = userData.cartes || [];
   console.log(`📊 Utilisateur ${userId} a ${userCards.length} cartes`);
   
   const pattern = await detectPatternWithAI(userCards);
@@ -664,10 +734,8 @@ async function generateOption42Card(analysis, messageOriginal, userId) {
 }
 
 // Stockage carte avec patterns complets
-function stockerCarte(userId, carteData, analysis, messageOriginal) {
-  if (!userData[userId]) {
-    userData[userId] = { cartes: [], preferences: {} };
-  }
+async function stockerCarte(userId, carteData, analysis, messageOriginal) {
+  const userData = await getUserData(userId);
   
   const carte = {
     id: Date.now(),
@@ -687,12 +755,15 @@ function stockerCarte(userId, carteData, analysis, messageOriginal) {
     carte.patternData = carteData.patternData;
   }
   
-  userData[userId].cartes.push(carte);
+  userData.cartes.push(carte);
   
   // Limite à 100 cartes par utilisateur
-  if (userData[userId].cartes.length > 100) {
-    userData[userId].cartes = userData[userId].cartes.slice(-100);
+  if (userData.cartes.length > 100) {
+    userData.cartes = userData.cartes.slice(-100);
   }
+  
+  // Sauvegarder dans MongoDB
+  await saveUserData(userId, userData);
   
   console.log(`💾 Carte émotionnelle stockée pour ${userId}`);
 }
@@ -727,7 +798,8 @@ app.post('/webhook', async (req, res) => {
     
     // Commandes avec tolérance aux typos
     if (messageClean.includes('habitude') || messageClean === 'habits') {
-      const userCards = userData[userId]?.cartes || [];
+      const userData = await getUserData(userId);
+      const userCards = userData.cartes || [];
       
       if (userCards.length === 0) {
         await client.messages.create({
@@ -798,7 +870,8 @@ Découvrir tes patterns émotionnels !`,
     }
     
     if (messageClean === 'journal') {
-      const userCards = userData[userId]?.cartes || [];
+      const userData = await getUserData(userId);
+      const userCards = userData.cartes || [];
       if (userCards.length === 0) {
         await client.messages.create({
           body: '📖 Ton journal est vide ! Commence par partager tes émotions.',
@@ -831,9 +904,11 @@ Découvrir tes patterns émotionnels !`,
     }
     
     if (messageClean === 'annule') {
-      const userCards = userData[userId]?.cartes || [];
+      const userData = await getUserData(userId);
+      const userCards = userData.cartes || [];
       if (userCards.length > 0) {
-        userData[userId].cartes.pop();
+        userData.cartes.pop();
+        await saveUserData(userId, userData);
         await client.messages.create({
           body: '✅ Dernière carte supprimée !',
           from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
@@ -854,7 +929,7 @@ Découvrir tes patterns émotionnels !`,
     const carteData = await generateOption42Card(analysis, message, userId);
     
     // Stockage
-    stockerCarte(userId, carteData, analysis, message);
+    await stockerCarte(userId, carteData, analysis, message);
     
     // Envoi IMAGE ou fallback texte
     console.log('🔧 AVANT ENVOI carte');
@@ -914,32 +989,68 @@ Découvrir tes patterns émotionnels !`,
 });
 
 // Route d'export des données
-app.get('/export', (req, res) => {
-  res.json(userData);
+app.get('/export', async (req, res) => {
+  try {
+    const allUsers = await usersCollection.find({}).toArray();
+    const exportData = {};
+    allUsers.forEach(user => {
+      exportData[user.userId] = {
+        cartes: user.cartes || [],
+        preferences: user.preferences || {}
+      };
+    });
+    res.json(exportData);
+  } catch (error) {
+    console.error('❌ Erreur export:', error);
+    res.status(500).json({ error: 'Erreur export données' });
+  }
 });
 
 // Health check
-app.get('/health', (req, res) => {
-  const userCount = Object.keys(userData).length;
-  const totalCards = Object.values(userData).reduce((sum, user) => sum + (user.cartes?.length || 0), 0);
-  
-  res.json({
-    status: 'OK',
-    version: 'Option 42 V2.0 - Service Externe Images',
-    users: userCount,
-    cards: totalCards,
-    timestamp: new Date().toISOString()
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const userCount = await usersCollection.countDocuments();
+    const totalCards = await usersCollection.aggregate([
+      { $project: { cardCount: { $size: "$cartes" } } },
+      { $group: { _id: null, total: { $sum: "$cardCount" } } }
+    ]).toArray();
+    
+    res.json({
+      status: 'OK',
+      version: 'Option 42 V2.0 MongoDB - Service Externe Images',
+      users: userCount,
+      cards: totalCards[0]?.total || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Erreur health check:', error);
+    res.status(500).json({ error: 'Erreur health check' });
+  }
 });
 
-// Démarrage serveur
-app.listen(port, () => {
-  console.log('🚀 MoodMap WhatsApp Bot - OPTION 42 V2.0 démarré sur port', port);
-  console.log('🎨 Génération cartes visuelles via service externe');
-  console.log('🎯 IA Pure avec validation stricte');
-  console.log('⚡ 2 appels Mistral + 1 génération image par carte');
-  console.log('🧠 Patterns intelligents automatiques');
-  console.log('🛡️ Fallback robuste intégré (texte si image échoue)');
-  console.log('🌈 Cartes pastels modernes pour WhatsApp');
-  console.log('💪 Ready for visual revolution (service externe) !');
+// Route d'accueil
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>🌈 MoodMap WhatsApp Bot - MongoDB</h1>
+    <p>Status: ✅ Actif avec MongoDB Atlas</p>
+    <p>Version: Option 42 V2.0 MongoDB</p>
+    <p>Envoie un message WhatsApp à ton numéro configuré !</p>
+    <small>Powered by MongoDB Atlas 🍃</small>
+  `);
+});
+
+// Connexion MongoDB au démarrage
+connectToMongoDB().then(() => {
+  app.listen(port, () => {
+    console.log('🚀 MoodMap WhatsApp Bot - OPTION 42 MongoDB V2.0 démarré sur port', port);
+    console.log('🍃 Base de données MongoDB Atlas');
+    console.log('🎨 Génération cartes visuelles via service externe');
+    console.log('🎯 IA Pure avec validation stricte');
+    console.log('⚡ 2 appels Mistral + 1 génération image par carte');
+    console.log('🧠 Patterns intelligents automatiques');
+    console.log('🛡️ Fallback robuste intégré (texte si image échoue)');
+    console.log('🌈 Cartes pastels modernes pour WhatsApp');
+    console.log('💾 Données persistantes sur MongoDB Atlas');
+    console.log('💪 Ready for visual revolution with MongoDB !');
+  });
 });
