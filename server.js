@@ -293,94 +293,156 @@ function validatePattern(pattern, insight) {
   return !hasEnglish;
 }
 
-// Détection de patterns avec IA + validation stricte
-async function detectPatternWithAI(userCards) {
+// NOUVELLE FONCTION : Double analyse patterns avec contextualisation
+async function detectDoublePatternWithAI(userCards, currentMessage, lastInsights = []) {
   if (!userCards || userCards.length < 3) {
-    console.log(`ℹ️ Pas assez de cartes pour pattern (${userCards?.length || 0}/3 minimum)`);
+    console.log(`ℹ️ Pas assez de cartes pour patterns (${userCards?.length || 0}/3 minimum)`);
     return null;
   }
   
-  console.log('🔍 Détection pattern IA...');
+  console.log('🔍 Double détection patterns IA...');
   
   const recentCards = userCards.slice(-7); // 7 dernières cartes
-  console.log(`📊 Analyse de ${recentCards.length} cartes récentes`);
+  const allCards = userCards; // Toutes les cartes
+  console.log(`📊 Analyse ${recentCards.length} cartes récentes + ${allCards.length} cartes totales`);
   
+  // Contexte temporel récent
+  const recentContext = recentCards.map((c, i) => {
+    const date = new Date(c.timestamp);
+    const dayName = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][date.getDay()];
+    const hour = date.getHours();
+    const period = hour < 12 ? 'matin' : hour < 18 ? 'après-midi' : 'soir';
+    return `${dayName} ${period} (${hour}h): "${c.message}" → ${c.emotions.map(e => `${e.emotion}(${e.intensite}/10)`).join(', ')}`;
+  }).join('\n');
+  
+  // Évolution long terme (échantillon)
+  const longTermSample = allCards.length > 20 ? 
+    [...allCards.slice(0, 5), ...allCards.slice(-10)] : allCards;
+  const longTermContext = longTermSample.map((c, i) => {
+    const date = new Date(c.timestamp);
+    const relativeDate = allCards.length > 20 ? 
+      (i < 5 ? `début (${date.toLocaleDateString('fr-FR')})` : `récent (${date.toLocaleDateString('fr-FR')})`) :
+      date.toLocaleDateString('fr-FR');
+    return `${relativeDate}: "${c.message}" → ${c.emotions.map(e => `${e.emotion}(${e.intensite}/10)`).join(', ')}`;
+  }).join('\n');
+  
+  // Anti-redondance
+  const lastInsightsText = lastInsights.length > 0 ? 
+    `\nDERNIERS INSIGHTS À ÉVITER (ne pas répéter) :\n${lastInsights.slice(-3).join('\n')}` : '';
+
   const prompt = `Langue : FRANÇAIS UNIQUEMENT.
-Format : EXACTEMENT deux lignes.
+MESSAGE ACTUEL : "${currentMessage}"
 
-Pattern: [observation factuelle croisant émotions + contexte + timing, max 15 mots]
-Insight: [suggestion douce au conditionnel, max 15 mots]
+IMPÉRATIF : Les patterns DOIVENT être liés au message actuel !
 
-Données récentes avec contexte temporal :
-${recentCards.map((c, i) => {
-  const date = new Date(c.timestamp);
-  const dayName = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][date.getDay()];
-  const hour = date.getHours();
-  const period = hour < 12 ? 'matin' : hour < 18 ? 'après-midi' : 'soir';
-  return `${dayName} ${period} (${hour}h): "${c.message}" → ${c.emotions.map(e => `${e.emotion}(${e.intensite}/10)`).join(', ')}`;
-}).join('\n')}
+Format : EXACTEMENT 4 lignes dans cet ordre.
 
-MISSION : Trouve des corrélations subtiles entre émotions, contexte, timing, mots-clés.
+TENDANCE_PATTERN: [pattern récent lié au message actuel, max 15 mots]
+TENDANCE_INSIGHT: [suggestion contextuelle au conditionnel, max 15 mots]
+EVOLUTION_PATTERN: [évolution long terme liée au message actuel, max 15 mots]  
+EVOLUTION_INSIGHT: [suggestion évolutive au conditionnel, max 15 mots]
 
-Exemples d'insights EXCELLENTS (au conditionnel) :
-Pattern: Motivation plus forte le matin quand tu parles de projets
-Insight: Planifier tes tâches créatives avant 10h pourrait améliorer ton efficacité
+DONNÉES RÉCENTES (7 dernières) :
+${recentContext}
 
-Pattern: Émotions intenses les jours commençant par M  
-Insight: Préparer ces journées avec des activités apaisantes pourrait aider
+ÉVOLUTION LONG TERME :
+${longTermContext}
+${lastInsightsText}
 
-Pattern: Mots positifs doublent quand tu mentionnes des personnes
-Insight: Cultiver davantage tes relations sociales pourrait améliorer ton bien-être
+MISSION CONTEXTUELLE :
+1. TENDANCE = Corrélation récente (7 cartes) avec le message actuel
+2. ÉVOLUTION = Changement long terme observable avec le message actuel
+3. Chaque pattern DOIT expliquer ou compléter le message actuel
+4. Éviter de répéter les derniers insights
+
+EXEMPLES EXCELLENTS :
+Message: "Super café avec Mike"
+TENDANCE_PATTERN: Interactions sociales boostent ton moral cette semaine
+TENDANCE_INSIGHT: Multiplier ces moments pourrait stabiliser ton humeur  
+EVOLUTION_PATTERN: Mike génère plus de joie maintenant qu'au début
+EVOLUTION_INSIGHT: Cultiver cette amitié pourrait être bénéfique long terme
+
+Message: "Réunion difficile" 
+TENDANCE_PATTERN: Stress professionnel récurrent ces derniers jours
+TENDANCE_INSIGHT: Préparer tes réunions pourrait réduire cette anxiété
+EVOLUTION_PATTERN: Ton rapport au travail s'est tendu depuis le début  
+EVOLUTION_INSIGHT: Réévaluer tes priorités professionnelles pourrait aider
 
 INTERDICTIONS :
-- Pas de patterns évidents ("tu aimes X car tu dis aimer X")
-- Pas d'anglais, pas d'impératif ("évite", "prends", "fais")
+- Patterns non liés au message actuel
+- Répétition des derniers insights
+- Anglais ou impératif ("évite", "prends")
 - Utilise "pourrait", "semblerait", "il se pourrait que"
-- Sois fin, perspicace, utile
 
-Si RIEN de subtil à dire, réponds :
-Pattern: Données insuffisantes pour pattern fin
-Insight: Continuer à partager pourrait révéler de nouveaux motifs`;
+Si IMPOSSIBLE de lier au message actuel :
+TENDANCE_PATTERN: Contexte insuffisant pour pattern lié au message
+TENDANCE_INSIGHT: Continuer à partager pourrait révéler des connexions`;
 
   try {
     const response = await callMistral(prompt);
-    console.log('🔍 Réponse IA pattern brute:', response);
+    console.log('🔍 Réponse IA double pattern brute:', response);
     
-    // Extraction avec regex
-    const match = response.match(/Pattern:\s*(.+)\nInsight:\s*(.+)/i);
-    if (!match) {
-      console.log('❌ Format pattern invalide');
+    // Extraction avec regex améliorée
+    const tendanceMatch = response.match(/TENDANCE_PATTERN:\s*(.+)\s*\n\s*TENDANCE_INSIGHT:\s*(.+)/i);
+    const evolutionMatch = response.match(/EVOLUTION_PATTERN:\s*(.+)\s*\n\s*EVOLUTION_INSIGHT:\s*(.+)/i);
+    
+    if (!tendanceMatch && !evolutionMatch) {
+      console.log('❌ Format double pattern invalide');
       return null;
     }
     
-    const [_, pattern, insight] = match;
-    const cleanPattern = pattern.trim();
-    const cleanInsight = insight.trim();
+    let result = {};
     
-    console.log(`🔍 Pattern extrait: "${cleanPattern}"`);
-    console.log(`🔍 Insight extrait: "${cleanInsight}"`);
+    // Validation pattern récent
+    if (tendanceMatch) {
+      const [_, tendancePattern, tendanceInsight] = tendanceMatch;
+      const cleanTendancePattern = tendancePattern.trim();
+      const cleanTendanceInsight = tendanceInsight.trim();
+      
+      console.log(`🔍 Tendance pattern: "${cleanTendancePattern}"`);
+      console.log(`🔍 Tendance insight: "${cleanTendanceInsight}"`);
+      
+      if (validatePattern(cleanTendancePattern, cleanTendanceInsight) &&
+          !cleanTendancePattern.toLowerCase().includes("contexte insuffisant")) {
+        result.recent = {
+          pattern: cleanTendancePattern,
+          insight: cleanTendanceInsight,
+          type: "tendance"
+        };
+        console.log('✅ Pattern tendance validé');
+      }
+    }
     
-    // Validation stricte
-    if (!validatePattern(cleanPattern, cleanInsight)) {
-      console.log('❌ Pattern rejeté par validation');
+    // Validation pattern évolution
+    if (evolutionMatch) {
+      const [_, evolutionPattern, evolutionInsight] = evolutionMatch;
+      const cleanEvolutionPattern = evolutionPattern.trim();
+      const cleanEvolutionInsight = evolutionInsight.trim();
+      
+      console.log(`🔍 Évolution pattern: "${cleanEvolutionPattern}"`);
+      console.log(`🔍 Évolution insight: "${cleanEvolutionInsight}"`);
+      
+      if (validatePattern(cleanEvolutionPattern, cleanEvolutionInsight) &&
+          !cleanEvolutionPattern.toLowerCase().includes("contexte insuffisant")) {
+        result.longTerm = {
+          pattern: cleanEvolutionPattern,
+          insight: cleanEvolutionInsight,
+          type: "evolution"
+        };
+        console.log('✅ Pattern évolution validé');
+      }
+    }
+    
+    if (Object.keys(result).length === 0) {
+      console.log('❌ Aucun pattern valide détecté');
       return null;
     }
     
-    // Vérification "aucun motif"
-    if (cleanPattern.toLowerCase().includes("aucun motif") || 
-        cleanInsight.toLowerCase().includes("aucun insight")) {
-      console.log('ℹ️ Aucun pattern détecté par IA');
-      return null;
-    }
-    
-    console.log('✅ Pattern validé et accepté');
-    return {
-      pattern: cleanPattern,
-      insight: cleanInsight
-    };
+    console.log(`✅ Double pattern détecté: ${result.recent ? 'Tendance' : ''}${result.recent && result.longTerm ? ' + ' : ''}${result.longTerm ? 'Évolution' : ''}`);
+    return result;
     
   } catch (error) {
-    console.error('❌ Erreur détection pattern:', error);
+    console.error('❌ Erreur détection double pattern:', error);
     return null;
   }
 }
@@ -485,8 +547,8 @@ function getEmotionEmoji(emotion) {
   return emojis[emotion] || "😐";
 }
 
-// FONCTION PRINCIPALE : Génération HTML pour la carte visuelle
-function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
+// FONCTION PRINCIPALE : Génération HTML pour la carte visuelle avec double patterns
+function generateMoodHTML(analysis, message, meteo, doublePattern, timestamp) {
   // Date formatée en français
   const date = new Date(timestamp);
   const options = { 
@@ -501,7 +563,33 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
   // Gradient selon la météo
   const gradient = meteoGradients[meteo.famille] || meteoGradients.sérénité;
 
-  // Construction du HTML
+  // Construction patterns HTML
+  let patternsHTML = '';
+  if (doublePattern) {
+    if (doublePattern.recent) {
+      patternsHTML += `
+        <div class="pattern-box">
+            <div class="badge">📊 TENDANCE</div>
+            <div class="pattern-text">${doublePattern.recent.pattern}</div>
+            
+            <div class="badge">🧭 PISTE</div>
+            <div class="insight-text">${doublePattern.recent.insight}</div>
+        </div>`;
+    }
+    
+    if (doublePattern.longTerm) {
+      patternsHTML += `
+        <div class="pattern-box">
+            <div class="badge">📈 ÉVOLUTION</div>
+            <div class="pattern-text">${doublePattern.longTerm.pattern}</div>
+            
+            <div class="badge">🧭 PISTE</div>
+            <div class="insight-text">${doublePattern.longTerm.insight}</div>
+        </div>`;
+    }
+  }
+
+  // Construction du HTML avec carte plus haute pour 2 patterns
   const html = `
 <!DOCTYPE html>
 <html lang="fr">
@@ -519,7 +607,7 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             width: 540px;
-            height: 680px;
+            height: 780px;
             margin: 0;
             padding: 0;
             overflow: hidden;
@@ -527,10 +615,10 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
         
         .card {
             width: 540px;
-            height: 680px;
+            height: 780px;
             background: ${gradient};
             border-radius: 30px;
-            padding: 50px;
+            padding: 45px;
             margin: 0;
             position: relative;
             box-sizing: border-box;
@@ -539,21 +627,21 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
         
         .weather-header {
             color: #374151;
-            font-size: 28px;
+            font-size: 26px;
             font-weight: bold;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
         }
         
         .quote-box {
             background: rgba(255, 255, 255, 0.8);
             border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
+            padding: 18px;
+            margin-bottom: 25px;
             font-style: italic;
             color: #374151;
-            font-size: 18px;
+            font-size: 17px;
             line-height: 1.4;
-            min-height: 80px;
+            min-height: 70px;
             display: flex;
             align-items: center;
         }
@@ -561,14 +649,14 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
         .emotions-box {
             background: rgba(255, 255, 255, 0.6);
             border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 18px;
+            margin-bottom: 18px;
             color: #374151;
         }
         
         .emotion-item {
-            font-size: 20px;
-            margin-bottom: 10px;
+            font-size: 18px;
+            margin-bottom: 8px;
             font-weight: 500;
         }
         
@@ -579,40 +667,40 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
         .pattern-box {
             background: rgba(255, 255, 255, 0.6);
             border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 16px;
+            margin-bottom: 16px;
             color: #374151;
         }
         
         .badge {
             display: inline-block;
             background: rgba(255, 255, 255, 0.8);
-            border-radius: 12px;
-            padding: 8px 16px;
-            font-size: 14px;
+            border-radius: 10px;
+            padding: 6px 12px;
+            font-size: 13px;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             color: #374151;
         }
         
         .pattern-text {
-            font-size: 16px;
-            line-height: 1.4;
-            margin-bottom: 15px;
+            font-size: 15px;
+            line-height: 1.3;
+            margin-bottom: 12px;
         }
         
         .insight-text {
-            font-size: 16px;
-            line-height: 1.4;
+            font-size: 15px;
+            line-height: 1.3;
         }
         
         .date-footer {
             position: absolute;
-            bottom: 40px;
+            bottom: 35px;
             left: 50%;
             transform: translateX(-50%);
             color: #6B7280;
-            font-size: 16px;
+            font-size: 15px;
             text-align: center;
         }
     </style>
@@ -635,15 +723,7 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
             }).join('')}
         </div>
         
-        ${pattern ? `
-        <div class="pattern-box">
-            <div class="badge">📊 TENDANCE</div>
-            <div class="pattern-text">${pattern.pattern}</div>
-            
-            <div class="badge">🧭 PISTE</div>
-            <div class="insight-text">${pattern.insight}</div>
-        </div>
-        ` : ''}
+        ${patternsHTML}
         
         <div class="date-footer">
             ${finalDate}
@@ -655,21 +735,21 @@ function generateMoodHTML(analysis, message, meteo, pattern, timestamp) {
   return html;
 }
 
-// Génération image via service externe
+// Génération image via service externe (mise à jour taille)
 async function generateImageFromHTML(html) {
   try {
     console.log('🎨 Génération image via service externe...');
     
-    // Configuration pour htmlcsstoimage.com
+    // Configuration pour htmlcsstoimage.com avec nouvelle taille
     const response = await axios.post('https://hcti.io/v1/image', {
       html: html,
       css: '', // CSS inclus dans le HTML
       width: 540,
-      height: 680,
+      height: 780, // Hauteur augmentée pour 2 patterns
       device_scale_factor: 2, // Haute définition
       format: 'png',
       viewport_width: 540,
-      viewport_height: 680,
+      viewport_height: 780,
       ms_delay: 0,
       selector: '.card' // Capture seulement la carte, pas toute la page
     }, {
@@ -698,25 +778,36 @@ async function generateImageFromHTML(html) {
   }
 }
 
-// Génération carte Option 42 avec image
+// Génération carte Option 42 avec double patterns
 async function generateOption42Card(analysis, messageOriginal, userId) {
   const meteo = generateMeteo(analysis.emotions);
   console.log(`🌤️ Météo générée: ${meteo.emoji} ${meteo.texte}`);
   
-  // Détection pattern IA
+  // Récupération données utilisateur pour patterns + anti-redondance
   const userData = await getUserData(userId);
   const userCards = userData.cartes || [];
   console.log(`📊 Utilisateur ${userId} a ${userCards.length} cartes`);
   
-  const pattern = await detectPatternWithAI(userCards);
-  console.log(`🔍 Pattern détecté: ${pattern ? 'OUI' : 'NON'}`);
+  // Extraire derniers insights pour anti-redondance
+  const lastInsights = userCards
+    .filter(c => c.recentInsight || c.longTermInsight)
+    .slice(-5) // 5 dernières cartes avec insights
+    .flatMap(c => [c.recentInsight, c.longTermInsight])
+    .filter(Boolean);
   
-  // Générer HTML
+  // Double détection patterns avec contextualisation
+  const doublePattern = await detectDoublePatternWithAI(userCards, messageOriginal, lastInsights);
+  console.log(`🔍 Double pattern détecté: ${doublePattern ? 'OUI' : 'NON'}`);
+  if (doublePattern) {
+    console.log(`📊 Types: ${doublePattern.recent ? 'Tendance' : ''}${doublePattern.recent && doublePattern.longTerm ? ' + ' : ''}${doublePattern.longTerm ? 'Évolution' : ''}`);
+  }
+  
+  // Générer HTML avec double patterns
   const html = generateMoodHTML(
     analysis, 
     messageOriginal, 
     meteo, 
-    pattern, 
+    doublePattern, 
     new Date().toISOString()
   );
   
@@ -727,13 +818,13 @@ async function generateOption42Card(analysis, messageOriginal, userId) {
     imageResult,
     meteoEmoji: meteo.emoji,
     meteoTexte: meteo.texte,
-    hasPattern: !!pattern,
-    patternData: pattern,
+    hasPattern: !!doublePattern,
+    doublePattern: doublePattern,
     html: html // Pour debug si besoin
   };
 }
 
-// Stockage carte avec patterns complets
+// Stockage carte avec double patterns
 async function stockerCarte(userId, carteData, analysis, messageOriginal) {
   const userData = await getUserData(userId);
   
@@ -748,11 +839,20 @@ async function stockerCarte(userId, carteData, analysis, messageOriginal) {
     imageUrl: carteData.imageResult.url
   };
   
-  // Bien stocker le pattern complet
-  if (carteData.hasPattern && carteData.patternData) {
-    carte.pattern = carteData.patternData.pattern;
-    carte.insight = carteData.patternData.insight;
-    carte.patternData = carteData.patternData;
+  // Stocker les double patterns
+  if (carteData.hasPattern && carteData.doublePattern) {
+    if (carteData.doublePattern.recent) {
+      carte.recentPattern = carteData.doublePattern.recent.pattern;
+      carte.recentInsight = carteData.doublePattern.recent.insight;
+    }
+    if (carteData.doublePattern.longTerm) {
+      carte.longTermPattern = carteData.doublePattern.longTerm.pattern;
+      carte.longTermInsight = carteData.doublePattern.longTerm.insight;
+    }
+    // Backward compatibility
+    carte.pattern = carteData.doublePattern.recent?.pattern || carteData.doublePattern.longTerm?.pattern;
+    carte.insight = carteData.doublePattern.recent?.insight || carteData.doublePattern.longTerm?.insight;
+    carte.doublePattern = carteData.doublePattern;
   }
   
   userData.cartes.push(carte);
@@ -814,21 +914,29 @@ Aucune habitude claire détectée pour le moment.
           to: from
         });
       } else {
-        // Chercher le dernier pattern détecté
+        // Chercher la dernière carte avec patterns détectés
         const carteAvecPattern = [...userCards].reverse().find(c => c.hasPattern);
         
         if (carteAvecPattern) {
+          let habitudesText = `🧠 TES HABITUDES ÉMOTIONNELLES\n\n`;
+          
+          if (carteAvecPattern.recentPattern) {
+            habitudesText += `📊 TENDANCE\n💡 ${carteAvecPattern.recentPattern}\n✨ ${carteAvecPattern.recentInsight}\n\n`;
+          }
+          
+          if (carteAvecPattern.longTermPattern) {
+            habitudesText += `📈 ÉVOLUTION\n💡 ${carteAvecPattern.longTermPattern}\n✨ ${carteAvecPattern.longTermInsight}\n\n`;
+          }
+          
+          // Fallback ancien format si pas de nouveaux champs
+          if (!carteAvecPattern.recentPattern && !carteAvecPattern.longTermPattern && carteAvecPattern.pattern) {
+            habitudesText += `💡 ${carteAvecPattern.pattern}\n✨ ${carteAvecPattern.insight}\n\n`;
+          }
+          
+          habitudesText += `📅 Détecté aujourd'hui\n\n🔍 Plus de détails :\n• "journal" - Historique complet\n• Nouvelles données = nouvelles révélations ! 💪`;
+          
           await client.messages.create({
-            body: `🧠 TES HABITUDES ÉMOTIONNELLES
-
-💡 ${carteAvecPattern.pattern}
-✨ ${carteAvecPattern.insight}
-
-📅 Détecté aujourd'hui
-
-🔍 Plus de détails :
-• "journal" - Historique complet
-• Nouvelles données = nouvelles révélations ! 💪`,
+            body: habitudesText,
             from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
             to: from
           });
@@ -888,9 +996,18 @@ Découvrir tes patterns émotionnels !`,
           carte.emotions.forEach(e => {
             journalText += `${getEmotionEmoji(e.emotion)} ${e.emotion}: ${e.intensite}/10\n`;
           });
-          if (carte.hasPattern) {
+          
+          // Affichage patterns (nouveau format puis fallback ancien)
+          if (carte.recentPattern) {
+            journalText += `📊 ${carte.recentPattern}\n`;
+          }
+          if (carte.longTermPattern) {
+            journalText += `📈 ${carte.longTermPattern}\n`;
+          }
+          if (!carte.recentPattern && !carte.longTermPattern && carte.pattern) {
             journalText += `💡 ${carte.pattern}\n`;
           }
+          
           journalText += '\n';
         });
         
@@ -943,7 +1060,7 @@ Découvrir tes patterns émotionnels !`,
       });
       console.log('✅ APRÈS ENVOI carte visuelle');
     } else {
-      // Fallback texte si image échoue
+      // Fallback texte si image échoue - MISE À JOUR DOUBLE PATTERNS
       let fallbackCard = `${carteData.meteoEmoji} ${carteData.meteoTexte}\n\n`;
       
       analysis.emotions.forEach(emotion => {
@@ -952,9 +1069,15 @@ Découvrir tes patterns émotionnels !`,
         fallbackCard += `${emotionEmoji} ${emotionText} : ${emotion.intensite}/10\n`;
       });
       
-      if (carteData.hasPattern) {
-        fallbackCard += `\n📊 ${carteData.patternData.pattern}`;
-        fallbackCard += `\n🧭 ${carteData.patternData.insight}`;
+      if (carteData.hasPattern && carteData.doublePattern) {
+        if (carteData.doublePattern.recent) {
+          fallbackCard += `\n📊 TENDANCE: ${carteData.doublePattern.recent.pattern}`;
+          fallbackCard += `\n🧭 PISTE: ${carteData.doublePattern.recent.insight}`;
+        }
+        if (carteData.doublePattern.longTerm) {
+          fallbackCard += `\n📈 ÉVOLUTION: ${carteData.doublePattern.longTerm.pattern}`;
+          fallbackCard += `\n🧭 PISTE: ${carteData.doublePattern.longTerm.insight}`;
+        }
       }
       
       fallbackCard += '\n\nPour annuler : annule';
